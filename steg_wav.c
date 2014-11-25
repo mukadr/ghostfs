@@ -130,7 +130,7 @@ static int wav_init(struct wav *wav)
 	wav->data = p + 8;
 	wav->len = *(uint32_t *)(p + 4);
 
-	if (wav->len > wav->steg.len) {
+	if (wav->len + (wav->data - wav->steg.map) > wav->steg.len) {
 		warnx("wav: bad data section");
 		return -1;
 	}
