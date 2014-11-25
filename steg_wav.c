@@ -13,18 +13,72 @@ struct wav {
 	struct steg steg;
 };
 
+// for now, bits is always 1
 static ssize_t wav_read(struct steg *steg, void *buf, size_t size, size_t offset, int bits)
 { 
 	struct wav *wav = container_of(steg, struct wav, steg);
-	(void)wav;
-	return 0;
+	unsigned char *bp;
+	int i;
+
+	// translate byte offset to sample offset
+	offset *= wav->bps;
+
+	if (offset + size*8*wav->bps >= wav->len) {
+		warnx("wav_read: trying to read beyond data section");
+		return -1;
+	}
+
+	bp = buf;
+	for (i = 0; i < size; i++) {
+		unsigned char b = 0;
+		int bit;
+
+		for (bit = 0; bit < 8; bit++) {
+			if ((wav->data[offset] & 1) == 1)
+				b |= 1 << bit;
+			offset += wav->bps;
+		}
+		*bp++ = b;
+	}
+
+	return size;
 }
 
 static ssize_t wav_write(struct steg *steg, const void *buf, size_t size, size_t offset, int bits)
 {
 	struct wav *wav = container_of(steg, struct wav, steg);
-	(void)wav;
-	return 0;
+	const unsigned char *bp;
+	int bit;
+
+	// translate byte offset to sample offset
+	offset *= wav->bps;
+
+	if (offset + size*8*wav->bps >= wav->len) {
+		warnx("wav_write: trying to write beyond data section");
+		return -1;
+	}
+
+	bp = buf;
+	bit = 0;
+	for (;;) {
+		if ((bp[0] & (1 << bit)) != 0)
+			wav->data[offset] |= 1;
+		else
+			wav->data[offset] &= 0xFE;
+
+		bit++;
+		offset += wav->bps;
+
+		if (bit == 8) {
+			bit = 0;
+			if (size == 1)
+				break;
+			size--;
+			bp++;
+		}
+	}
+
+	return size;
 }
 
 static void wav_release(struct steg *steg)
