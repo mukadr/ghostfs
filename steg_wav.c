@@ -81,6 +81,13 @@ static ssize_t wav_write(struct steg *steg, const void *buf, size_t size, size_t
 	return size;
 }
 
+static size_t wav_capacity(struct steg *steg)
+{
+	struct wav *wav = container_of(steg, struct wav, steg);
+
+	return wav->len/wav->bps/8;
+}
+
 static void wav_release(struct steg *steg)
 {
 	struct wav *wav = container_of(steg, struct wav, steg);
@@ -90,7 +97,8 @@ static void wav_release(struct steg *steg)
 static const struct steg_ops wav_ops = {
 	.read = wav_read,
 	.write = wav_write,
-	.release = wav_release
+	.capacity = wav_capacity,
+	.release = wav_release,
 };
 
 /* Parses the wav file to locate its data section */

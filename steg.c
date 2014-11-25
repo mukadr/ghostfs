@@ -61,3 +61,8 @@ ssize_t steg_write(struct steg *steg, const void *buf, size_t size, size_t offse
 {
 	return steg->ops->write(steg, buf, size, offset, bits);
 }
+
+size_t steg_capacity(struct steg *steg)
+{
+	return steg->ops->capacity(steg);
+}
