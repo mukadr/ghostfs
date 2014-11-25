@@ -38,15 +38,18 @@ int steg_open(struct steg *steg, const char *filename, const struct steg_ops *op
 
 int steg_close(struct steg *steg)
 {
+	int ret = 0;
+
 	if (munmap(steg->map, steg->len) < 0) {
 		warn("munmap");
-		return -1;
+		ret = -1;
 	}
 	if (close(steg->fd) < 0) {
 		warn("close");
-		return -1;
+		ret = -1;
 	}
-	return 0;
+	steg->ops.release(steg);
+	return ret;
 }
 
 ssize_t steg_read(struct steg *steg, void *buf, size_t size, size_t offset, int bits)

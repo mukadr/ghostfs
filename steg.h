@@ -13,6 +13,7 @@ struct steg;
 struct steg_ops {
 	ssize_t (*read)(struct steg *steg, void *buf, size_t size, size_t offset, int bits);
 	ssize_t (*write)(struct steg *steg, const void *buf, size_t size, size_t offset, int bits);
+	void (*release)(struct steg *steg);
 };
 
 struct steg {
