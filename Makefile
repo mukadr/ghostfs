@@ -5,7 +5,7 @@ CFLAGS  = -std=gnu99 -Wall -O2
 CFLAGS += -Werror-implicit-function-declaration
 CFLAGS += -Wshadow
 
-OBJS  = ghost.o steg.o
+OBJS  = ghost.o steg.o steg_wav.o
 
 all: $(PROG)
 

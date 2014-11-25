@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "steg.h"
+#include "steg_wav.h"
 
 struct steg_ops dummy_ops = {
 	NULL,
@@ -11,14 +11,14 @@ struct steg_ops dummy_ops = {
 
 int main(int argc, char *argv[])
 {
-	struct steg steg;
+	struct steg *steg;
 
 	if (argc < 2) {
 		printf("usage: ghost <file>\n");
 		return 1;
 	}
-	if (steg_open(&steg, argv[1], &dummy_ops) < 0)
+	if (wav_open(&steg, argv[1]) < 0)
 		return 1;
-	steg_close(&steg);
+	steg_close(steg);
 	return 0;
 }

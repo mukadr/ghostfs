@@ -6,6 +6,8 @@
 #ifndef GHOST_STEG_H
 #define GHOST_STEG_H
 
+#include <stddef.h>
+
 #define container_of(obj, type, member) ((type *)((char *)obj - (char *)offsetof(type, member)))
 
 struct steg;
