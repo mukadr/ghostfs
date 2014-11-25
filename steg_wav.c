@@ -7,7 +7,7 @@
 #include "steg_wav.h"
 
 struct wav {
-	int bps; // bits per sample
+	int bps; // bytes per sample
 	unsigned char *data; // data section
 	size_t len; // data section len
 	struct steg steg;
@@ -61,7 +61,7 @@ static int wav_init(struct wav *wav)
 		warnx("wav: only PCM format supported");
 		return -1;
 	}
-	wav->bps = *(uint16_t *)(p + 22);
+	wav->bps = *(uint16_t *)(p + 22) / 8;
 
 	while (len >= 4) {
 		if (memcmp(p, "data ", 4) == 0)
