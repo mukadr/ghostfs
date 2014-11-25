@@ -32,7 +32,7 @@ int steg_open(struct steg *steg, const char *filename, const struct steg_ops *op
 		warn("mmap");
 		return -1;
 	}
-	memcpy(&steg->ops, ops, sizeof(struct steg_ops));
+	steg->ops = ops;
 	return 0;
 }
 
@@ -48,16 +48,16 @@ int steg_close(struct steg *steg)
 		warn("close");
 		ret = -1;
 	}
-	steg->ops.release(steg);
+	steg->ops->release(steg);
 	return ret;
 }
 
 ssize_t steg_read(struct steg *steg, void *buf, size_t size, size_t offset, int bits)
 {
-	return steg->ops.read(steg, buf, size, offset, bits);
+	return steg->ops->read(steg, buf, size, offset, bits);
 }
 
 ssize_t steg_write(struct steg *steg, const void *buf, size_t size, size_t offset, int bits)
 {
-	return steg->ops.write(steg, buf, size, offset, bits);
+	return steg->ops->write(steg, buf, size, offset, bits);
 }

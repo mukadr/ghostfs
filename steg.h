@@ -20,7 +20,7 @@ struct steg {
 	int fd;
 	unsigned char *map;
 	size_t len;
-	struct steg_ops ops;
+	const struct steg_ops *ops;
 };
 
 int steg_open(struct steg *steg, const char *filename, const struct steg_ops *ops);
