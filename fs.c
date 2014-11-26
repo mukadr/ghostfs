@@ -137,6 +137,12 @@ int ghostfs_open(struct ghostfs **pgfs, const char *filename)
 		break;
 	}
 
+	if (steg_read(gfs->steg, &gfs->hdr, sizeof(struct ghostfs_header), 0, 1) < 0) {
+		steg_close(gfs->steg);
+		free(gfs);
+		return -1;
+	}
+
 	ghostfs_check(gfs);
 
 	*pgfs = gfs;
@@ -149,4 +155,9 @@ int ghostfs_close(struct ghostfs *gfs)
 	ret = steg_close(gfs->steg);
 	free(gfs);
 	return ret;
+}
+
+int ghostfs_cluster_count(const struct ghostfs *gfs)
+{
+	return gfs->hdr.clusters;
 }

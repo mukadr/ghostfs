@@ -12,5 +12,6 @@ int ghostfs_close(struct ghostfs *gfs);
 
 int ghostfs_format(struct ghostfs *gfs);
 int ghostfs_status(const struct ghostfs *gfs);
+int ghostfs_cluster_count(const struct ghostfs *gfs);
 
 #endif // GHOST_FS_H

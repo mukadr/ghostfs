@@ -22,6 +22,7 @@ int main(int argc, char *argv[])
 			break;
 		case 0:
 			printf("formatted media\n");
+			printf("cluster count = %d\n", ghostfs_cluster_count(gfs));
 			break;
 		}
 		break;
