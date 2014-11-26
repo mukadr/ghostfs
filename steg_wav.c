@@ -21,7 +21,7 @@ static ssize_t wav_read(struct steg *steg, void *buf, size_t size, size_t offset
 	int i;
 
 	// translate byte offset to sample offset
-	offset *= wav->bps;
+	offset = offset * 8 * wav->bps;
 
 	if (offset + size*8*wav->bps >= wav->len) {
 		warnx("wav_read: trying to read beyond data section");
@@ -51,7 +51,7 @@ static ssize_t wav_write(struct steg *steg, const void *buf, size_t size, size_t
 	int bit;
 
 	// translate byte offset to sample offset
-	offset *= wav->bps;
+	offset = offset * 8 * wav->bps;
 
 	if (offset + size*8*wav->bps >= wav->len) {
 		warnx("wav_write: trying to write beyond data section");
