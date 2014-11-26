@@ -158,7 +158,7 @@ int wav_open(struct steg **steg, const char *filename)
 		return -1;
 	}
 
-	if (steg_open(&wav->steg, filename, &wav_ops) < 0) {
+	if (steg_init(&wav->steg, filename, &wav_ops) < 0) {
 		free(wav);
 		return -1;
 	}

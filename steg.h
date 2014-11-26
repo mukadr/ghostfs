@@ -30,7 +30,8 @@ struct steg {
 	const struct steg_ops *ops;
 };
 
-int steg_open(struct steg *steg, const char *filename, const struct steg_ops *ops);
+int steg_init(struct steg *steg, const char *filename, const struct steg_ops *ops);
+int steg_open(struct steg **steg, const char *filename);
 int steg_close(struct steg *steg);
 
 ssize_t steg_read(struct steg *steg, void *buf, size_t size, size_t offset, int bits);

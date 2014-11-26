@@ -8,12 +8,13 @@
 #include <unistd.h>
 
 #include "steg.h"
+#include "steg_wav.h"
 
-int steg_open(struct steg *steg, const char *filename, const struct steg_ops *ops)
+int steg_init(struct steg *steg, const char *filename, const struct steg_ops *ops)
 {
 	struct stat st;
 	int fd;
-       
+
 	fd = open(filename, O_RDWR);
 	if (fd < 0) {
 		warn("open");
@@ -34,6 +35,23 @@ int steg_open(struct steg *steg, const char *filename, const struct steg_ops *op
 	}
 	steg->ops = ops;
 	return 0;
+}
+
+int steg_open(struct steg **steg, const char *filename)
+{
+	size_t len;
+
+	len = strlen(filename);
+	if (len < 5) {
+		warnx("steg: unknown file type");
+		return -1;
+	}
+
+	if (memcmp(&filename[len-4], ".wav", 4) == 0) {
+		return wav_open(steg, filename);
+	}
+	warnx("ghostfs: unknown file type");
+	return -1;
 }
 
 int steg_close(struct steg *steg)

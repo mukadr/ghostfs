@@ -106,21 +106,6 @@ int ghostfs_status(const struct ghostfs *gfs)
 int ghostfs_open(struct ghostfs **pgfs, const char *filename)
 {
 	struct ghostfs *gfs;
-	enum steg_type type;
-	size_t len;
-
-	len = strlen(filename);
-	if (len < 5) {
-		warnx("ghostfs: unknown file type");
-		return -1;
-	}
-
-	if (memcmp(&filename[len-4], ".wav", 4) == 0) {
-		type = STEG_WAV;
-	} else {
-		warnx("ghostfs: unknown file type");
-		return -1;
-	}
 
 	gfs = malloc(sizeof(*gfs));
 	if (!gfs) {
@@ -128,13 +113,9 @@ int ghostfs_open(struct ghostfs **pgfs, const char *filename)
 		return -1;
 	}
 
-	switch (type) {
-	case STEG_WAV:
-		if (wav_open(&gfs->steg, filename) < 0) {
-			free(gfs);
-			return -1;
-		}
-		break;
+	if (steg_open(&gfs->steg, filename) < 0) {
+		free(gfs);
+		return -1;
 	}
 
 	if (steg_read(gfs->steg, &gfs->hdr, sizeof(struct ghostfs_header), 0, 1) < 0) {
