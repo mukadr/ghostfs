@@ -4,7 +4,8 @@
 struct ghostfs;
 
 enum {
-	GHOSTFS_UNFORMATTED = 1,
+	GHOSTFS_OK = 0,
+	GHOSTFS_UNFORMATTED,
 };
 
 int ghostfs_open(struct ghostfs **pgfs, const char *filename);

@@ -4,11 +4,14 @@
 #include <string.h>
 
 #include "fs.h"
+#include "md5.h"
 #include "steg.h"
 
 enum {
 	CLUSTER_SIZE = 4096,
 };
+
+// MD5(header+cluster0) | header | cluster0 .. clusterN
 
 struct ghostfs_header {
 	uint16_t clusters;
@@ -55,16 +58,45 @@ static inline uint32_t dir_entry_size(const struct dir_entry *e)
 	return e->size & 0x7FFFFFFF;
 }
 
-// TODO: check if there is a filesystem (by doing MD5 checksum of the header and first cluster)
-static void ghostfs_check(const struct ghostfs *gfs)
-{
-}
-
 static int write_cluster(struct ghostfs *gfs, const struct cluster *cluster, int nr)
 {
-	size_t c0_offset = sizeof(struct ghostfs_header);
+	size_t c0_offset = 16 + sizeof(struct ghostfs_header);
 
 	return steg_write(gfs->steg, cluster, sizeof(struct cluster), c0_offset + nr*CLUSTER_SIZE, 1);
+}
+
+static int read_cluster(struct ghostfs *gfs, struct cluster *cluster, int nr)
+{
+	size_t c0_offset = 16 + sizeof(struct ghostfs_header);
+
+	return steg_read(gfs->steg, cluster, sizeof(struct cluster), c0_offset + nr*CLUSTER_SIZE, 1);
+}
+
+// TODO: check if there is a filesystem (by doing MD5 checksum of the header and first cluster)
+static void ghostfs_check(struct ghostfs *gfs)
+{
+	MD5_CTX md5_ctx;
+	unsigned char md5_fs[16];
+	unsigned char md5[16];
+	struct cluster root;
+
+	gfs->status = GHOSTFS_UNFORMATTED;
+
+	if (steg_read(gfs->steg, md5_fs, sizeof(md5_fs), 0, 1) < 0)
+		return;
+
+	if (read_cluster(gfs, &root, 0) < 0)
+		return;
+
+	MD5_Init(&md5_ctx);
+	MD5_Update(&md5_ctx, &gfs->hdr, sizeof(gfs->hdr));
+	MD5_Update(&md5_ctx, &root, sizeof(root));
+	MD5_Final(md5, &md5_ctx);
+
+	if (memcmp(md5, md5_fs, 16) != 0)
+		return;
+
+	gfs->status = GHOSTFS_OK;
 }
 
 // create a new filesystem
@@ -73,8 +105,10 @@ int ghostfs_format(struct ghostfs *gfs)
 	size_t avail;
 	size_t clusters;
 	struct cluster root;
+	MD5_CTX md5_ctx;
+	unsigned char md5[16];
 
-	avail = steg_capacity(gfs->steg) - sizeof(struct ghostfs_header);
+	avail = steg_capacity(gfs->steg) - 16 - sizeof(struct ghostfs_header);
 	clusters = avail / CLUSTER_SIZE;
 
 	if (clusters < 1) {
@@ -85,13 +119,22 @@ int ghostfs_format(struct ghostfs *gfs)
 		clusters = 0xFFFF;
 
 	gfs->hdr.clusters = clusters;
+	memset(&root, 0, sizeof(root));
+
+	MD5_Init(&md5_ctx);
+	MD5_Update(&md5_ctx, &gfs->hdr, sizeof(gfs->hdr));
+	MD5_Update(&md5_ctx, &root, sizeof(root));
+	MD5_Final(md5, &md5_ctx);
+
+	// write md5 of header+root
+	if (steg_write(gfs->steg, md5, sizeof(md5), 0, 1) < 0)
+		return -1;
 
 	// write header
-	if (steg_write(gfs->steg, &gfs->hdr, sizeof(struct ghostfs_header), 0, 1) < 0)
+	if (steg_write(gfs->steg, &gfs->hdr, sizeof(gfs->hdr), 16, 1) < 0)
 		return -1;
 
 	// write first cluster (empty directory)
-	memset(&root, 0, sizeof(root));
 	if (write_cluster(gfs, &root, 0) < 0)
 		return -1;
 
@@ -118,7 +161,7 @@ int ghostfs_open(struct ghostfs **pgfs, const char *filename)
 		return -1;
 	}
 
-	if (steg_read(gfs->steg, &gfs->hdr, sizeof(struct ghostfs_header), 0, 1) < 0) {
+	if (steg_read(gfs->steg, &gfs->hdr, sizeof(struct ghostfs_header), 16, 1) < 0) {
 		steg_close(gfs->steg);
 		free(gfs);
 		return -1;
