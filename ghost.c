@@ -20,7 +20,7 @@ int main(int argc, char *argv[])
 		case GHOSTFS_UNFORMATTED:
 			printf("unformatted media\n");
 			break;
-		case 0:
+		case GHOSTFS_OK:
 			printf("formatted media\n");
 			printf("cluster count = %d\n", ghostfs_cluster_count(gfs));
 			break;
