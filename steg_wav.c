@@ -24,7 +24,7 @@ static ssize_t wav_read(struct steg *steg, void *buf, size_t size, size_t offset
 	offset = offset * 8 * wav->bps;
 
 	if (offset + size*8*wav->bps >= wav->len) {
-		warnx("wav_read: trying to read beyond data section");
+		warnx("wav: trying to read beyond data section");
 		return -1;
 	}
 
@@ -54,7 +54,7 @@ static ssize_t wav_write(struct steg *steg, const void *buf, size_t size, size_t
 	offset = offset * 8 * wav->bps;
 
 	if (offset + size*8*wav->bps >= wav->len) {
-		warnx("wav_write: trying to write beyond data section");
+		warnx("wav: trying to write beyond data section");
 		return -1;
 	}
 
@@ -154,7 +154,7 @@ int wav_open(struct steg **steg, const char *filename)
 
 	wav = malloc(sizeof(*wav));
 	if (!wav) {
-		warn("malloc");
+		warn("wav: malloc");
 		return -1;
 	}
 

@@ -78,7 +78,7 @@ int ghostfs_format(struct ghostfs *gfs)
 	clusters = avail / CLUSTER_SIZE;
 
 	if (clusters < 1) {
-		warnx("ghostfs: no minimum space available");
+		warnx("fs: no minimum space available");
 		return -1;
 	}
 	if (clusters > 0xFFFF)
@@ -109,7 +109,7 @@ int ghostfs_open(struct ghostfs **pgfs, const char *filename)
 
 	gfs = malloc(sizeof(*gfs));
 	if (!gfs) {
-		warn("malloc");
+		warn("fs: malloc");
 		return -1;
 	}
 

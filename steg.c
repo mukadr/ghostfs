@@ -17,12 +17,12 @@ int steg_init(struct steg *steg, const char *filename, const struct steg_ops *op
 
 	fd = open(filename, O_RDWR);
 	if (fd < 0) {
-		warn("open");
+		warn("steg: open");
 		return -1;
 	}
 	if (fstat(fd, &st) < 0) {
 		close(fd);
-		warn("stat");
+		warn("steg: stat");
 		return -1;
 	}
 	steg->fd = fd;
@@ -30,7 +30,7 @@ int steg_init(struct steg *steg, const char *filename, const struct steg_ops *op
 	steg->map = mmap(NULL, steg->len, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
 	if (steg->map == MAP_FAILED) {
 		close(fd);
-		warn("mmap");
+		warn("steg: mmap");
 		return -1;
 	}
 	steg->ops = ops;
@@ -50,7 +50,7 @@ int steg_open(struct steg **steg, const char *filename)
 	if (memcmp(&filename[len-4], ".wav", 4) == 0) {
 		return wav_open(steg, filename);
 	}
-	warnx("ghostfs: unknown file type");
+	warnx("steg: unknown file type");
 	return -1;
 }
 
@@ -59,11 +59,11 @@ int steg_close(struct steg *steg)
 	int ret = 0;
 
 	if (munmap(steg->map, steg->len) < 0) {
-		warn("munmap");
+		warn("steg: munmap");
 		ret = -1;
 	}
 	if (close(steg->fd) < 0) {
-		warn("close");
+		warn("steg: close");
 		ret = -1;
 	}
 	steg->ops->release(steg);
