@@ -4,7 +4,7 @@
 #include <string.h>
 
 #include "fs.h"
-#include "steg_wav.h"
+#include "steg.h"
 
 enum {
 	CLUSTER_SIZE = 4096,
