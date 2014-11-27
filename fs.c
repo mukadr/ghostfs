@@ -72,7 +72,6 @@ static int read_cluster(struct ghostfs *gfs, struct cluster *cluster, int nr)
 	return steg_read(gfs->steg, cluster, sizeof(struct cluster), c0_offset + nr*CLUSTER_SIZE, 1);
 }
 
-// TODO: check if there is a filesystem (by doing MD5 checksum of the header and first cluster)
 static void ghostfs_check(struct ghostfs *gfs)
 {
 	MD5_CTX md5_ctx;
