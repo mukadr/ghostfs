@@ -48,6 +48,7 @@ static ssize_t wav_write(struct steg *steg, const void *buf, size_t size, size_t
 {
 	struct wav *wav = container_of(steg, struct wav, steg);
 	const unsigned char *bp;
+	size_t left;
 	int bit;
 
 	// translate byte offset to sample offset
@@ -60,6 +61,7 @@ static ssize_t wav_write(struct steg *steg, const void *buf, size_t size, size_t
 
 	bp = buf;
 	bit = 0;
+	left = size;
 	for (;;) {
 		if ((bp[0] & (1 << bit)) != 0)
 			wav->data[offset] |= 1;
@@ -71,9 +73,9 @@ static ssize_t wav_write(struct steg *steg, const void *buf, size_t size, size_t
 
 		if (bit == 8) {
 			bit = 0;
-			if (size == 1)
+			if (left == 1)
 				break;
-			size--;
+			left--;
 			bp++;
 		}
 	}
