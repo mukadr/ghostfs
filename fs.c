@@ -81,6 +81,9 @@ static void ghostfs_check(struct ghostfs *gfs)
 
 	gfs->status = GHOSTFS_UNFORMATTED;
 
+	if (steg_read(gfs->steg, &gfs->hdr, sizeof(struct ghostfs_header), 16, 1) < 0)
+		return;
+
 	if (steg_read(gfs->steg, md5_fs, sizeof(md5_fs), 0, 1) < 0)
 		return;
 
@@ -134,7 +137,7 @@ int ghostfs_format(struct ghostfs *gfs)
 		return -1;
 
 	// write first cluster (empty directory)
-	if (steg_write(gfs->steg, &root, sizeof(root), 16 + sizeof(ghostfs_header), 1) < 0)
+	if (steg_write(gfs->steg, &root, sizeof(root), 16 + sizeof(struct ghostfs_header), 1) < 0)
 		return -1;
 
 	return 0;
@@ -156,12 +159,6 @@ int ghostfs_open(struct ghostfs **pgfs, const char *filename)
 	}
 
 	if (steg_open(&gfs->steg, filename) < 0) {
-		free(gfs);
-		return -1;
-	}
-
-	if (steg_read(gfs->steg, &gfs->hdr, sizeof(struct ghostfs_header), 16, 1) < 0) {
-		steg_close(gfs->steg);
 		free(gfs);
 		return -1;
 	}
