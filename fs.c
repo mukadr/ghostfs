@@ -215,7 +215,7 @@ int ghostfs_open(struct ghostfs **pgfs, const char *filename)
 		return 0;
 
 	// allocate cluster cache
-	gfs->clusters = calloc(1, CLUSTER_SIZE * gfs->hdr.clusters);
+	gfs->clusters = calloc(1, sizeof(struct cluster *) * gfs->hdr.clusters);
 	if (!gfs->clusters) {
 		warn("fs: malloc");
 		steg_close(gfs->steg);
