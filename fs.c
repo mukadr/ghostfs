@@ -28,12 +28,12 @@ struct cluster_header {
 	uint16_t next;
 	uint8_t used;
 	uint8_t dirty; // unused byte. we use it only in-memory to know if the cache entry is dirty
-};
+} __attribute__((packed));
 
 struct cluster {
 	unsigned char data[4092];
 	struct cluster_header hdr;
-};
+} __attribute__((packed));
 
 /*
  * Root directory '/' is stored at cluster 0.
