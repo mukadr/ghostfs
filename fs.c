@@ -87,7 +87,7 @@ static void ghostfs_check(struct ghostfs *gfs)
 	if (steg_read(gfs->steg, md5_fs, sizeof(md5_fs), 0, 1) < 0)
 		return;
 
-	if (read_cluster(gfs, &root, 0) < 0)
+	if (steg_read(gfs->steg, &root, sizeof(root), 16 + sizeof(struct ghostfs_header), 1) < 0)
 		return;
 
 	MD5_Init(&md5_ctx);
