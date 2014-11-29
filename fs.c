@@ -134,7 +134,7 @@ int ghostfs_format(struct ghostfs *gfs)
 		return -1;
 
 	// write first cluster (empty directory)
-	if (write_cluster(gfs, &root, 0) < 0)
+	if (steg_write(gfs->steg, &root, sizeof(root), 16 + sizeof(ghostfs_header), 1) < 0)
 		return -1;
 
 	return 0;
