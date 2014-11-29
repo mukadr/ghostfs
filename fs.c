@@ -59,7 +59,7 @@ static inline uint32_t dir_entry_size(const struct dir_entry *e)
 	return e->size & 0x7FFFFFFF;
 }
 
-static struct cluster *get_cluster(struct ghostfs *gfs, int nr)
+static struct cluster *cluster_get(struct ghostfs *gfs, int nr)
 {
 	if (!gfs->clusters[nr]) {
 		gfs->clusters[nr] = malloc(CLUSTER_SIZE);
@@ -82,7 +82,7 @@ static int cluster_write(struct ghostfs *gfs, int nr)
 	struct cluster *cluster;
 	int ret;
 
-	cluster = get_cluster(gfs, nr);
+	cluster = cluster_get(gfs, nr);
 	if (!cluster)
 		return -1;
 
@@ -102,7 +102,7 @@ static int cluster_read(struct ghostfs *gfs, int nr, struct cluster **pcluster)
 	struct cluster *cluster;
 	int ret;
 
-	cluster = get_cluster(gfs, nr);
+	cluster = cluster_get(gfs, nr);
 	if (!cluster)
 		return -1;
 
