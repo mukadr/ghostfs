@@ -21,12 +21,13 @@ struct ghostfs {
 	int status;
 	struct ghostfs_header hdr;
 	struct steg *steg;
+	struct cluster **clusters; // cluster cache
 };
 
 struct cluster_header {
 	uint16_t next;
 	uint8_t used;
-	uint8_t unused;
+	uint8_t dirty; // unused byte. we use it only in-memory to know if the cache entry is dirty
 };
 
 struct cluster {
@@ -58,18 +59,63 @@ static inline uint32_t dir_entry_size(const struct dir_entry *e)
 	return e->size & 0x7FFFFFFF;
 }
 
-static int write_cluster(struct ghostfs *gfs, const struct cluster *cluster, int nr)
+static struct cluster *get_cluster(struct ghostfs *gfs, int nr)
 {
-	size_t c0_offset = 16 + sizeof(struct ghostfs_header);
-
-	return steg_write(gfs->steg, cluster, sizeof(struct cluster), c0_offset + nr*CLUSTER_SIZE, 1);
+	if (!gfs->clusters[nr]) {
+		gfs->clusters[nr] = malloc(CLUSTER_SIZE);
+		if (!gfs->clusters[nr]) {
+			warn("fs: malloc");
+			return NULL;
+		}
+	}
+	return gfs->clusters[nr];
 }
 
-static int read_cluster(struct ghostfs *gfs, struct cluster *cluster, int nr)
+static inline void cluster_set_dirty(struct cluster *cluster)
 {
-	size_t c0_offset = 16 + sizeof(struct ghostfs_header);
+	cluster->hdr.dirty = 1;
+}
 
-	return steg_read(gfs->steg, cluster, sizeof(struct cluster), c0_offset + nr*CLUSTER_SIZE, 1);
+static int cluster_write(struct ghostfs *gfs, int nr)
+{
+	const size_t c0_offset = 16 + sizeof(struct ghostfs_header);
+	struct cluster *cluster;
+	int ret;
+
+	cluster = get_cluster(gfs, nr);
+	if (!cluster)
+		return -1;
+
+	ret = steg_write(gfs->steg, cluster, CLUSTER_SIZE, c0_offset + nr*CLUSTER_SIZE, 1);
+	if (ret < 0)
+		return ret;
+	if (ret != CLUSTER_SIZE)
+		return 0;
+
+	cluster->hdr.dirty = 0;
+	return 1;
+}
+
+static int cluster_read(struct ghostfs *gfs, int nr, struct cluster **pcluster)
+{
+	const size_t c0_offset = 16 + sizeof(struct ghostfs_header);
+	struct cluster *cluster;
+	int ret;
+
+	cluster = get_cluster(gfs, nr);
+	if (!cluster)
+		return -1;
+
+	*pcluster = cluster;
+
+	ret = steg_read(gfs->steg, cluster, CLUSTER_SIZE, c0_offset + nr*CLUSTER_SIZE, 1);
+	if (ret < 0)
+		return ret;
+	if (ret != CLUSTER_SIZE)
+		return 0;
+
+	cluster->hdr.dirty = 0;
+	return 1;
 }
 
 static void ghostfs_check(struct ghostfs *gfs)
@@ -152,11 +198,12 @@ int ghostfs_open(struct ghostfs **pgfs, const char *filename)
 {
 	struct ghostfs *gfs;
 
-	gfs = malloc(sizeof(*gfs));
+	gfs = calloc(1, sizeof(*gfs));
 	if (!gfs) {
 		warn("fs: malloc");
 		return -1;
 	}
+	*pgfs = gfs;
 
 	if (steg_open(&gfs->steg, filename) < 0) {
 		free(gfs);
@@ -164,15 +211,30 @@ int ghostfs_open(struct ghostfs **pgfs, const char *filename)
 	}
 
 	ghostfs_check(gfs);
+	if (gfs->status != GHOSTFS_OK) // if there is no file system, we stop here
+		return 0;
 
-	*pgfs = gfs;
+	// allocate cluster cache
+	gfs->clusters = calloc(1, CLUSTER_SIZE * gfs->hdr.clusters);
+	if (!gfs->clusters) {
+		warn("fs: malloc");
+		steg_close(gfs->steg);
+		free(gfs);
+		return -1;
+	}
+
 	return 0;
 }
 
 int ghostfs_close(struct ghostfs *gfs)
 {
 	int ret;
+	int i;
+
 	ret = steg_close(gfs->steg);
+	for (i = 0; i < gfs->hdr.clusters; i++)
+		free(gfs->clusters[i]);
+	free(gfs->clusters);
 	free(gfs);
 	return ret;
 }
