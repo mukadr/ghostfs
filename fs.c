@@ -1,4 +1,5 @@
 #include <err.h>
+#include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,6 +10,8 @@
 
 enum {
 	CLUSTER_SIZE = 4096,
+	DIR_ENTRY_PER_CLUSTER = 66,
+	FILENAME_SIZE = 56
 };
 
 // MD5(header+cluster0) | header | cluster0 .. clusterN
@@ -22,6 +25,7 @@ struct ghostfs {
 	struct ghostfs_header hdr;
 	struct steg *steg;
 	struct cluster **clusters; // cluster cache
+	struct fs_node *tree;
 };
 
 struct cluster_header {
@@ -35,6 +39,11 @@ struct cluster {
 	struct cluster_header hdr;
 } __attribute__((packed));
 
+static inline void cluster_set_dirty(struct cluster *cluster)
+{
+	cluster->hdr.dirty = 1;
+}
+
 /*
  * Root directory '/' is stored at cluster 0.
  *
@@ -44,7 +53,7 @@ struct cluster {
  * An empty filename (filename[0] == '\0') means that the entry is empty
  */
 struct dir_entry {
-	char filename[56];
+	char filename[FILENAME_SIZE];
 	uint32_t size; // highest bit is set when the entry is a directory
 	uint16_t cluster;
 } __attribute__((packed));
@@ -59,8 +68,138 @@ static inline uint32_t dir_entry_size(const struct dir_entry *e)
 	return e->size & 0x7FFFFFFF;
 }
 
+// represents the filesystem tree
+struct fs_node {
+	struct fs_node *next;
+	struct fs_node *child;
+	struct fs_node *parent;
+	struct dir_entry *entry;
+};
+
+static struct fs_node *fs_node_alloc(void);
+static struct fs_node *fs_load_dir(struct ghostfs *gfs, struct cluster *cluster);
+static struct fs_node *fs_load(struct ghostfs *gfs);
+static struct cluster *cluster_get(struct ghostfs *gfs, int nr);
+static int cluster_write(struct ghostfs *gfs, int nr);
+static int cluster_read(struct ghostfs *gfs, int nr, struct cluster **pcluster);
+static void ghostfs_check(struct ghostfs *gfs);
+
+static struct fs_node *fs_node_alloc(void)
+{
+	struct fs_node *node;
+
+	node = calloc(1, sizeof(*node));
+	if (!node)
+		warn("fs_node: malloc");
+	return node;
+}
+
+static struct fs_node *fs_load_dir(struct ghostfs *gfs, struct cluster *cluster)
+{
+	struct fs_node *root;
+	struct fs_node *last = NULL;
+	int i;
+
+	root = fs_node_alloc();
+	if (!root) {
+		// FIXME free root
+		return NULL;
+	}
+
+	for (;;) {
+		struct dir_entry *entries = (struct dir_entry *)cluster->data;
+
+		for (i = 0; i < DIR_ENTRY_PER_CLUSTER; i++) {
+			struct dir_entry *e = &entries[i];
+			struct fs_node *n;
+
+			if (!e->filename[0]) // unused entry?
+				continue;
+
+			// make sure there is a valid string
+			if (!memchr(e->filename, '\0', FILENAME_SIZE)) {
+				e->filename[0] = '\0';
+				warnx("fs: invalid entry filename");
+				continue;
+			}
+
+			n = fs_node_alloc();
+			if (!n) {
+				// FIXME free root
+				return NULL;
+			}
+			n->entry = e;
+			n->parent = root;
+
+			if (dir_entry_is_directory(e)) {
+				struct cluster *c;
+
+				if (cluster_read(gfs, e->cluster, &c) == 1) {
+					n->child = fs_load_dir(gfs, c);
+				} else {
+					warnx("fs: invalid entry cluster");
+				}
+			}
+
+			if (!last)
+				root->child = n;
+			else
+				last->next = n;
+
+			last = n;
+		}
+
+		if (cluster->hdr.next == 0)
+			break;
+		if (cluster_read(gfs, cluster->hdr.next, &cluster) < 0)
+			break;
+	}
+
+	return root;
+}
+
+static void fs_tree_debug(struct ghostfs *gfs, const struct fs_node *tree)
+{
+	if (!tree)
+		return;
+
+	if (tree == tree->parent) {
+		puts("/");
+		fs_tree_debug(gfs, tree->child);
+		return;
+	}
+
+	do {
+		puts(tree->entry->filename);
+		if (dir_entry_is_directory(tree->entry))
+			fs_tree_debug(gfs, tree->child);
+		tree = tree->next;
+	} while (tree);
+}
+
+static struct fs_node *fs_load(struct ghostfs *gfs)
+{
+	struct cluster *cluster;
+	struct fs_node *root;
+
+	if (cluster_read(gfs, 0, &cluster) < 0)
+		return NULL;
+
+	root = fs_load_dir(gfs, cluster);
+	if (!root)
+		return NULL;
+
+	root->parent = root;
+
+	return root;
+}
+
 static struct cluster *cluster_get(struct ghostfs *gfs, int nr)
 {
+	if (nr >= gfs->hdr.clusters) {
+		warnx("fs: invalid cluster number %d", nr);
+		return NULL;
+	}
 	if (!gfs->clusters[nr]) {
 		gfs->clusters[nr] = malloc(CLUSTER_SIZE);
 		if (!gfs->clusters[nr]) {
@@ -69,11 +208,6 @@ static struct cluster *cluster_get(struct ghostfs *gfs, int nr)
 		}
 	}
 	return gfs->clusters[nr];
-}
-
-static inline void cluster_set_dirty(struct cluster *cluster)
-{
-	cluster->hdr.dirty = 1;
 }
 
 static int cluster_write(struct ghostfs *gfs, int nr)
@@ -218,10 +352,20 @@ int ghostfs_open(struct ghostfs **pgfs, const char *filename)
 	gfs->clusters = calloc(1, sizeof(struct cluster *) * gfs->hdr.clusters);
 	if (!gfs->clusters) {
 		warn("fs: malloc");
-		steg_close(gfs->steg);
-		free(gfs);
+		ghostfs_close(gfs);
 		return -1;
 	}
+
+	// load filesystem tree
+	gfs->tree = fs_load(gfs);
+	if (!gfs->tree) {
+		warn("fs: failed to load filesystem tree");
+		ghostfs_close(gfs);
+		return -1;
+	}
+
+	// debug
+	fs_tree_debug(gfs, gfs->tree);
 
 	return 0;
 }
@@ -232,9 +376,11 @@ int ghostfs_close(struct ghostfs *gfs)
 	int i;
 
 	ret = steg_close(gfs->steg);
-	for (i = 0; i < gfs->hdr.clusters; i++)
-		free(gfs->clusters[i]);
-	free(gfs->clusters);
+	if (gfs->clusters) {
+		for (i = 0; i < gfs->hdr.clusters; i++)
+			free(gfs->clusters[i]);
+		free(gfs->clusters);
+	}
 	free(gfs);
 	return ret;
 }
