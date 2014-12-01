@@ -10,7 +10,7 @@
 
 enum {
 	CLUSTER_SIZE = 4096,
-	DIR_ENTRY_PER_CLUSTER = 66,
+	DIR_ENTRIES_PER_CLUSTER = 66,
 	FILENAME_SIZE = 56
 };
 
@@ -48,7 +48,7 @@ static inline void cluster_set_dirty(struct cluster *cluster)
  * Root directory '/' is stored at cluster 0.
  *
  * Each directory cluster have 66 entries(62 bytes each) = 4092bytes.
- * The remaining 4 bytes of the cluster is used to store the cluster_header
+ * The remaining 4 bytes of the cluster are used to store the cluster_header
  *
  * An empty filename (filename[0] == '\0') means that the entry is empty
  */
@@ -109,7 +109,7 @@ static struct fs_node *fs_load_dir(struct ghostfs *gfs, struct cluster *cluster)
 	for (;;) {
 		struct dir_entry *entries = (struct dir_entry *)cluster->data;
 
-		for (i = 0; i < DIR_ENTRY_PER_CLUSTER; i++) {
+		for (i = 0; i < DIR_ENTRIES_PER_CLUSTER; i++) {
 			struct dir_entry *e = &entries[i];
 			struct fs_node *n;
 
