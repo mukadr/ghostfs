@@ -39,9 +39,14 @@ struct cluster {
 	struct cluster_header hdr;
 } __attribute__((packed));
 
-static inline void cluster_set_dirty(struct cluster *cluster)
+static inline void cluster_set_dirty(struct cluster *cluster, int dirty)
 {
-	cluster->hdr.dirty = 1;
+	cluster->hdr.dirty = dirty;
+}
+
+static inline int cluster_is_dirty(const struct cluster *cluster)
+{
+	return cluster->hdr.dirty;
 }
 
 /*
@@ -79,9 +84,9 @@ struct fs_node {
 static struct fs_node *fs_node_alloc(void);
 static struct fs_node *fs_load_dir(struct ghostfs *gfs, struct cluster *cluster);
 static struct fs_node *fs_load(struct ghostfs *gfs);
-static struct cluster *cluster_get(struct ghostfs *gfs, int nr);
-static int cluster_write(struct ghostfs *gfs, int nr);
-static int cluster_read(struct ghostfs *gfs, int nr, struct cluster **pcluster);
+static int cluster_get(struct ghostfs *gfs, int nr, struct cluster **pcluster);
+static int write_cluster(struct ghostfs *gfs, struct cluster *cluster, int nr);
+static int read_cluster(struct ghostfs *gfs, struct cluster *cluster, int nr);
 static void ghostfs_check(struct ghostfs *gfs);
 
 static struct fs_node *fs_node_alloc(void)
@@ -134,11 +139,10 @@ static struct fs_node *fs_load_dir(struct ghostfs *gfs, struct cluster *cluster)
 			if (dir_entry_is_directory(e)) {
 				struct cluster *c;
 
-				if (cluster_read(gfs, e->cluster, &c) == 1) {
-					n->child = fs_load_dir(gfs, c);
-				} else {
+				if (cluster_get(gfs, e->cluster, &c) < 0)
 					warnx("fs: invalid entry cluster");
-				}
+				else
+					n->child = fs_load_dir(gfs, c);
 			}
 
 			if (!last)
@@ -151,7 +155,7 @@ static struct fs_node *fs_load_dir(struct ghostfs *gfs, struct cluster *cluster)
 
 		if (cluster->hdr.next == 0)
 			break;
-		if (cluster_read(gfs, cluster->hdr.next, &cluster) < 0)
+		if (cluster_get(gfs, cluster->hdr.next, &cluster) < 0)
 			break;
 	}
 
@@ -182,7 +186,7 @@ static struct fs_node *fs_load(struct ghostfs *gfs)
 	struct cluster *cluster;
 	struct fs_node *root;
 
-	if (cluster_read(gfs, 0, &cluster) < 0)
+	if (cluster_get(gfs, 0, &cluster) < 0)
 		return NULL;
 
 	root = fs_load_dir(gfs, cluster);
@@ -194,31 +198,32 @@ static struct fs_node *fs_load(struct ghostfs *gfs)
 	return root;
 }
 
-static struct cluster *cluster_get(struct ghostfs *gfs, int nr)
+static int cluster_get(struct ghostfs *gfs, int nr, struct cluster **pcluster)
 {
 	if (nr >= gfs->hdr.clusters) {
 		warnx("fs: invalid cluster number %d", nr);
-		return NULL;
+		return -1;
 	}
 	if (!gfs->clusters[nr]) {
-		gfs->clusters[nr] = malloc(CLUSTER_SIZE);
-		if (!gfs->clusters[nr]) {
+		struct cluster *c = malloc(CLUSTER_SIZE);
+		if (!c) {
 			warn("fs: malloc");
-			return NULL;
+			return -1;
 		}
+		if (read_cluster(gfs, c, nr) <= 0) {
+			free(c);
+			return -1;
+		}
+		gfs->clusters[nr] = c;
 	}
-	return gfs->clusters[nr];
+	*pcluster = gfs->clusters[nr];
+	return 0;
 }
 
-static int cluster_write(struct ghostfs *gfs, int nr)
+static int write_cluster(struct ghostfs *gfs, struct cluster *cluster, int nr)
 {
 	const size_t c0_offset = 16 + sizeof(struct ghostfs_header);
-	struct cluster *cluster;
 	int ret;
-
-	cluster = cluster_get(gfs, nr);
-	if (!cluster)
-		return -1;
 
 	ret = steg_write(gfs->steg, cluster, CLUSTER_SIZE, c0_offset + nr*CLUSTER_SIZE, 1);
 	if (ret < 0)
@@ -226,21 +231,14 @@ static int cluster_write(struct ghostfs *gfs, int nr)
 	if (ret != CLUSTER_SIZE)
 		return 0;
 
-	cluster->hdr.dirty = 0;
+	cluster_set_dirty(cluster, 0);
 	return 1;
 }
 
-static int cluster_read(struct ghostfs *gfs, int nr, struct cluster **pcluster)
+static int read_cluster(struct ghostfs *gfs, struct cluster *cluster, int nr)
 {
 	const size_t c0_offset = 16 + sizeof(struct ghostfs_header);
-	struct cluster *cluster;
 	int ret;
-
-	cluster = cluster_get(gfs, nr);
-	if (!cluster)
-		return -1;
-
-	*pcluster = cluster;
 
 	ret = steg_read(gfs->steg, cluster, CLUSTER_SIZE, c0_offset + nr*CLUSTER_SIZE, 1);
 	if (ret < 0)
@@ -248,7 +246,7 @@ static int cluster_read(struct ghostfs *gfs, int nr, struct cluster **pcluster)
 	if (ret != CLUSTER_SIZE)
 		return 0;
 
-	cluster->hdr.dirty = 0;
+	cluster_set_dirty(cluster, 0);
 	return 1;
 }
 
@@ -370,19 +368,46 @@ int ghostfs_open(struct ghostfs **pgfs, const char *filename)
 	return 0;
 }
 
-int ghostfs_close(struct ghostfs *gfs)
+int ghostfs_sync(struct ghostfs *gfs)
 {
-	int ret;
 	int i;
 
-	ret = steg_close(gfs->steg);
+	if (!gfs->clusters) // nothing to sync
+		return 0;
+
+	for (i = 0; i < gfs->hdr.clusters; i++) {
+		struct cluster *c = gfs->clusters[i];
+		int ret;
+
+		if (!c || !cluster_is_dirty(c))
+			continue;
+
+		ret = write_cluster(gfs, c, i);
+		if (ret < 0)
+			return ret;
+
+		cluster_set_dirty(c, 0);
+	}
+
+	return 0;
+}
+
+int ghostfs_close(struct ghostfs *gfs)
+{
+	int ret, ret_close;
+	int i;
+
+	ret = ghostfs_sync(gfs);
+	ret_close = steg_close(gfs->steg);
+
 	if (gfs->clusters) {
 		for (i = 0; i < gfs->hdr.clusters; i++)
 			free(gfs->clusters[i]);
 		free(gfs->clusters);
 	}
 	free(gfs);
-	return ret;
+
+	return ret == 0 ? ret_close : ret;
 }
 
 int ghostfs_cluster_count(const struct ghostfs *gfs)
