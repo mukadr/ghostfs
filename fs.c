@@ -279,14 +279,37 @@ static void ghostfs_check(struct ghostfs *gfs)
 	gfs->status = GHOSTFS_OK;
 }
 
+static int write_header(struct ghostfs *gfs, const struct cluster *cluster0)
+{
+	MD5_CTX md5_ctx;
+	unsigned char md5[16];
+
+	MD5_Init(&md5_ctx);
+	MD5_Update(&md5_ctx, &gfs->hdr, sizeof(gfs->hdr));
+	MD5_Update(&md5_ctx, cluster0, sizeof(*cluster0));
+	MD5_Final(md5, &md5_ctx);
+
+	// write md5 of header+root
+	if (steg_write(gfs->steg, md5, sizeof(md5), 0, 1) < 0)
+		return -1;
+
+	// write header
+	if (steg_write(gfs->steg, &gfs->hdr, sizeof(gfs->hdr), 16, 1) < 0)
+		return -1;
+
+	// write first cluster
+	if (steg_write(gfs->steg, cluster0, sizeof(*cluster0), 16 + sizeof(struct ghostfs_header), 1) < 0)
+		return -1;
+
+	return 0;
+}
+
 // create a new filesystem
 int ghostfs_format(struct ghostfs *gfs)
 {
 	size_t avail;
 	size_t clusters;
 	struct cluster root;
-	MD5_CTX md5_ctx;
-	unsigned char md5[16];
 
 	avail = steg_capacity(gfs->steg) - 16 - sizeof(struct ghostfs_header);
 	clusters = avail / CLUSTER_SIZE;
@@ -301,21 +324,7 @@ int ghostfs_format(struct ghostfs *gfs)
 	gfs->hdr.clusters = clusters;
 	memset(&root, 0, sizeof(root));
 
-	MD5_Init(&md5_ctx);
-	MD5_Update(&md5_ctx, &gfs->hdr, sizeof(gfs->hdr));
-	MD5_Update(&md5_ctx, &root, sizeof(root));
-	MD5_Final(md5, &md5_ctx);
-
-	// write md5 of header+root
-	if (steg_write(gfs->steg, md5, sizeof(md5), 0, 1) < 0)
-		return -1;
-
-	// write header
-	if (steg_write(gfs->steg, &gfs->hdr, sizeof(gfs->hdr), 16, 1) < 0)
-		return -1;
-
-	// write first cluster (empty directory)
-	if (steg_write(gfs->steg, &root, sizeof(root), 16 + sizeof(struct ghostfs_header), 1) < 0)
+	if (write_header(gfs, &root) < 0)
 		return -1;
 
 	return 0;
@@ -370,14 +379,22 @@ int ghostfs_open(struct ghostfs **pgfs, const char *filename)
 
 int ghostfs_sync(struct ghostfs *gfs)
 {
-	int i;
+	struct cluster *c0;
+	int ret, i;
 
-	if (!gfs->clusters) // nothing to sync
+	ret = cluster_get(gfs, 0, &c0);
+	if (ret < 0)
+		return ret;
+
+	ret = write_header(gfs, c0);
+	if (ret < 0)
+		return ret;
+
+	if (!gfs->clusters) // nothing more to sync
 		return 0;
 
-	for (i = 0; i < gfs->hdr.clusters; i++) {
+	for (i = 1; i < gfs->hdr.clusters; i++) {
 		struct cluster *c = gfs->clusters[i];
-		int ret;
 
 		if (!c || !cluster_is_dirty(c))
 			continue;
