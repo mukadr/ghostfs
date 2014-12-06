@@ -210,7 +210,7 @@ static int cluster_get(struct ghostfs *gfs, int nr, struct cluster **pcluster)
 			warn("fs: malloc");
 			return -1;
 		}
-		if (read_cluster(gfs, c, nr) <= 0) {
+		if (read_cluster(gfs, c, nr) < 0) {
 			free(c);
 			return -1;
 		}
@@ -229,10 +229,10 @@ static int write_cluster(struct ghostfs *gfs, struct cluster *cluster, int nr)
 	if (ret < 0)
 		return ret;
 	if (ret != CLUSTER_SIZE)
-		return 0;
+		return -1;
 
 	cluster_set_dirty(cluster, 0);
-	return 1;
+	return 0;
 }
 
 static int read_cluster(struct ghostfs *gfs, struct cluster *cluster, int nr)
@@ -244,10 +244,10 @@ static int read_cluster(struct ghostfs *gfs, struct cluster *cluster, int nr)
 	if (ret < 0)
 		return ret;
 	if (ret != CLUSTER_SIZE)
-		return 0;
+		return -1;
 
 	cluster_set_dirty(cluster, 0);
-	return 1;
+	return 0;
 }
 
 static void ghostfs_check(struct ghostfs *gfs)
