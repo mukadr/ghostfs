@@ -335,7 +335,7 @@ int ghostfs_status(const struct ghostfs *gfs)
 	return gfs->status;
 }
 
-int ghostfs_open(struct ghostfs **pgfs, const char *filename)
+int ghostfs_mount(struct ghostfs **pgfs, const char *filename)
 {
 	struct ghostfs *gfs;
 
@@ -359,7 +359,7 @@ int ghostfs_open(struct ghostfs **pgfs, const char *filename)
 	gfs->clusters = calloc(1, sizeof(struct cluster *) * gfs->hdr.clusters);
 	if (!gfs->clusters) {
 		warn("fs: malloc");
-		ghostfs_close(gfs);
+		ghostfs_umount(gfs);
 		return -1;
 	}
 
@@ -367,7 +367,7 @@ int ghostfs_open(struct ghostfs **pgfs, const char *filename)
 	gfs->tree = fs_load(gfs);
 	if (!gfs->tree) {
 		warn("fs: failed to load filesystem tree");
-		ghostfs_close(gfs);
+		ghostfs_umount(gfs);
 		return -1;
 	}
 
@@ -409,7 +409,7 @@ int ghostfs_sync(struct ghostfs *gfs)
 	return 0;
 }
 
-int ghostfs_close(struct ghostfs *gfs)
+int ghostfs_umount(struct ghostfs *gfs)
 {
 	int ret, ret_close;
 	int i;

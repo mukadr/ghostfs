@@ -8,8 +8,8 @@ enum {
 	GHOSTFS_UNFORMATTED,
 };
 
-int ghostfs_open(struct ghostfs **pgfs, const char *filename);
-int ghostfs_close(struct ghostfs *gfs);
+int ghostfs_mount(struct ghostfs **pgfs, const char *filename);
+int ghostfs_umount(struct ghostfs *gfs);
 
 int ghostfs_format(struct ghostfs *gfs);
 int ghostfs_status(const struct ghostfs *gfs);

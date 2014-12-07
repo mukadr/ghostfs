@@ -11,7 +11,7 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	if (ghostfs_open(&gfs, argv[2]) < 0)
+	if (ghostfs_mount(&gfs, argv[2]) < 0)
 		return 1;
 
 	switch (argv[1][0]) {
@@ -32,7 +32,7 @@ int main(int argc, char *argv[])
 		break;
 	}
 
-	if (ghostfs_close(gfs) < 0)
+	if (ghostfs_umount(gfs) < 0)
 		return 1;
 
 	return 0;
