@@ -125,6 +125,58 @@ static int dir_iter_next_used(struct dir_iter *it)
 	return 1;
 }
 
+static int component_eq(const char *comp, const char *name)
+{
+	while (*comp && *name && *comp != '/') {
+		comp++;
+		name++;
+	}
+
+	return (!*comp || *comp == '/') && !*name;
+}
+
+static int dir_iter_lookup(struct ghostfs *gfs, struct dir_iter *it, const char *path)
+{
+	struct cluster *c0;
+	const char *comp;
+
+	if (!path[0]) {
+		warnx("fs: dir_iter_lookup: empty path");
+		return 0;
+	}
+
+	if (cluster_get(gfs, 0, &c0) < 0)
+		return 0;
+
+	dir_iter_init(it, gfs, c0);
+
+	comp = path + 1; // skip first slash
+	if (!comp[0]) // root
+		return 1;
+
+	for (;;) {
+		if (component_eq(comp, it->entry->filename)) {
+			const char *next = strchr(comp, '/');
+			struct cluster *child;
+
+			if (!next[0]) // finished
+				return 1;
+			if (!dir_entry_is_directory(it->entry)) // not a valid path
+				return 0;
+			if (cluster_get(gfs, it->entry->cluster, &child) < 0)
+				return 0;
+
+			// start searching in child directory
+			dir_iter_init(it, gfs, child);
+			comp = next + 1;
+			continue;
+		}
+		if (!dir_iter_next_used(it)) // nothing more to search
+			return 0;
+	}
+	// unreachable
+}
+
 static int cluster_get(struct ghostfs *gfs, int nr, struct cluster **pcluster)
 {
 	if (nr >= gfs->hdr.clusters) {
