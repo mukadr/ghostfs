@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <err.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -76,6 +77,53 @@ static int cluster_get(struct ghostfs *gfs, int nr, struct cluster **pcluster);
 static int write_cluster(struct ghostfs *gfs, struct cluster *cluster, int nr);
 static int read_cluster(struct ghostfs *gfs, struct cluster *cluster, int nr);
 static void ghostfs_check(struct ghostfs *gfs);
+
+struct dir_iter {
+	struct ghostfs *gfs;
+	struct cluster *cluster;
+	struct dir_entry *entry;
+	int entry_nr; // to make the code simpler
+};
+
+static void dir_iter_init(struct dir_iter *it, struct ghostfs *gfs, struct cluster *cluster)
+{
+	it->gfs = gfs;
+	it->cluster = cluster;
+	it->entry = (struct dir_entry *)cluster;
+	it->entry_nr = 0;
+}
+
+static int dir_iter_next(struct dir_iter *it)
+{
+	if (it->entry_nr >= DIR_ENTRIES_PER_CLUSTER - 1) {
+		struct cluster *c;
+
+		if (it->cluster->hdr.next == 0 || cluster_get(it->gfs, it->cluster->hdr.next, &c) < 0)
+			return 0;
+
+		it->cluster = c;
+		it->entry_nr = 0;
+		it->entry = (struct dir_entry *)it->cluster->data;
+		return 1;
+	}
+
+	it->entry_nr++;
+	it->entry++;
+	return 1;
+}
+
+static int dir_iter_next_used(struct dir_iter *it)
+{
+	struct dir_iter temp = *it;
+
+	do {
+		if (!dir_iter_next(&temp))
+			return 0;
+	} while (it->entry->filename[0] == '\0');
+
+	*it = temp;
+	return 1;
+}
 
 static int cluster_get(struct ghostfs *gfs, int nr, struct cluster **pcluster)
 {
