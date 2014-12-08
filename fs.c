@@ -192,24 +192,31 @@ static const char *last_component(const char *path)
 	return path;
 }
 
-static int dir_contains(struct ghostfs *gfs, int cluster_nr, const char *name, struct dir_entry **empty_slot)
+static struct dir_entry *find_empty_entry(struct ghostfs *gfs, int cluster_nr)
+{
+	struct dir_iter it;
+
+	if (dir_iter_init(gfs, &it, cluster_nr) < 0)
+		return NULL;
+
+	while (dir_entry_used(it.entry))
+		if (!dir_iter_next(&it))
+			return NULL;
+
+	return it.entry;
+}
+
+static int dir_contains(struct ghostfs *gfs, int cluster_nr, const char *name)
 {
 	struct dir_iter it;
 
 	if (dir_iter_init(gfs, &it, cluster_nr) < 0)
 		return 0;
 
-	if (empty_slot)
-		*empty_slot = NULL;
-
 	do {
-		if (empty_slot && !*empty_slot && !dir_entry_used(it.entry)) {
-			*empty_slot = it.entry;
-			continue;
-		}
 		if (!strcmp(it.entry->filename, name))
 			return 1;
-	} while (dir_iter_next(&it));
+	} while (dir_iter_next_used(&it));
 
 	return 0;
 }
@@ -219,7 +226,7 @@ int ghostfs_mknod(struct ghostfs *gfs, const char *path)
 {
 	struct dir_iter it;
 	const char *name;
-	struct dir_entry *slot = NULL;
+	struct dir_entry *entry;
 
 	if (!dir_iter_lookup(gfs, &it, path, 1)) {
 		warnx("fs: ghostfs_mknod: invalid path");
@@ -233,21 +240,21 @@ int ghostfs_mknod(struct ghostfs *gfs, const char *path)
 
 	name = last_component(path);
 
-	if (dir_contains(gfs, it.entry->cluster, name, &slot)) {
+	if (dir_contains(gfs, it.entry->cluster, name)) {
 		warnx("fs: ghostfs_mknod: file exists");
 		return -1;
 	}
 
-	// cluster is full
-	if (!slot) {
+	entry = find_empty_entry(gfs, it.entry->cluster);
+	if (!entry) { // cluster is full
 		// TODO: expand number of clusters
 		return 0;
 	}
 
-	strncpy(slot->filename, name, FILENAME_SIZE);
-	slot->filename[FILENAME_SIZE - 1] = '\0';
-	slot->cluster = 0;
-	slot->size = 0;
+	strncpy(entry->filename, name, FILENAME_SIZE);
+	entry->filename[FILENAME_SIZE - 1] = '\0';
+	entry->cluster = 0;
+	entry->size = 0;
 	return 1;
 }
 
