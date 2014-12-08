@@ -30,12 +30,12 @@ int main(int argc, char *argv[])
 		if (ghostfs_format(gfs) < 0)
 			return 1;
 		break;
-	case 'k':
+	case 'c':
 		if (argc != 4) {
-			printf("mknod: missing filename\n");
+			printf("create: missing filename\n");
 			return 1;
 		}
-		if (ghostfs_mknod(gfs, argv[3]) < 0)
+		if (ghostfs_create(gfs, argv[3]) < 0)
 			return 1;
 		break;
 	}

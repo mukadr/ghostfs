@@ -11,7 +11,7 @@ enum {
 int ghostfs_mount(struct ghostfs **pgfs, const char *filename);
 int ghostfs_umount(struct ghostfs *gfs);
 
-int ghostfs_mknod(struct ghostfs *gfs, const char *path);
+int ghostfs_create(struct ghostfs *gfs, const char *path);
 
 int ghostfs_format(struct ghostfs *gfs);
 int ghostfs_status(const struct ghostfs *gfs);

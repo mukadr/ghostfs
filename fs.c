@@ -222,7 +222,7 @@ static int dir_contains(struct ghostfs *gfs, int cluster_nr, const char *name)
 }
 
 // only supports regular files
-int ghostfs_mknod(struct ghostfs *gfs, const char *path)
+int ghostfs_create(struct ghostfs *gfs, const char *path)
 {
 	struct dir_iter it;
 	const char *name;
