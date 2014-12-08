@@ -221,27 +221,26 @@ static int dir_contains(struct ghostfs *gfs, int cluster_nr, const char *name)
 	return 0;
 }
 
-// only supports regular files
-int ghostfs_create(struct ghostfs *gfs, const char *path)
+static int create_entry(struct ghostfs *gfs, const char *path, int is_dir)
 {
 	struct dir_iter it;
 	const char *name;
 	struct dir_entry *entry;
 
 	if (!dir_iter_lookup(gfs, &it, path, 1)) {
-		warnx("fs: ghostfs_mknod: invalid path");
+		warnx("fs: create_entry: invalid path");
 		return -1;
 	}
 
 	if (!dir_entry_is_directory(it.entry)) {
-		warnx("fs: ghostfs_mknod: invalid path");
+		warnx("fs: create_entry: invalid path");
 		return -1;
 	}
 
 	name = last_component(path);
 
 	if (dir_contains(gfs, it.entry->cluster, name)) {
-		warnx("fs: ghostfs_mknod: file exists");
+		warnx("fs: create_entry: file exists");
 		return -1;
 	}
 
@@ -253,9 +252,19 @@ int ghostfs_create(struct ghostfs *gfs, const char *path)
 
 	strncpy(entry->filename, name, FILENAME_SIZE);
 	entry->filename[FILENAME_SIZE - 1] = '\0';
+	entry->size = is_dir ? 0x80000000 : 0;
 	entry->cluster = 0;
-	entry->size = 0;
 	return 1;
+}
+
+int ghostfs_create(struct ghostfs *gfs, const char *path)
+{
+	return create_entry(gfs, path, 0);
+}
+
+int ghostfs_mkdir(struct ghostfs *gfs, const char *path)
+{
+	return create_entry(gfs, path, 1);
 }
 
 static int cluster_get(struct ghostfs *gfs, int nr, struct cluster **pcluster)
@@ -403,8 +412,12 @@ static void print_dir_entries(struct ghostfs *gfs)
 		return;
 
 	do {
-		if (dir_entry_used(it.entry))
-			printf("'%s'\n", it.entry->filename);
+		if (dir_entry_used(it.entry)) {
+			printf("'%s", it.entry->filename);
+			if (dir_entry_is_directory(it.entry))
+				printf("/");
+			printf("'\n");
+		}
 	} while (dir_iter_next_used(&it));
 }
 

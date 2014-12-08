@@ -38,6 +38,14 @@ int main(int argc, char *argv[])
 		if (ghostfs_create(gfs, argv[3]) < 0)
 			return 1;
 		break;
+	case 'd':
+		if (argc != 4) {
+			printf("mkdir: missing filename\n");
+			return 1;
+		}
+		if (ghostfs_mkdir(gfs, argv[3]) < 0)
+			return 1;
+		break;
 	}
 
 	if (ghostfs_umount(gfs) < 0)
