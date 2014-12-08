@@ -137,7 +137,7 @@ static int component_eq(const char *comp, const char *name)
 
 static int dir_iter_lookup(struct ghostfs *gfs, struct dir_iter *it, const char *path)
 {
-	struct cluster *c0;
+	struct cluster *cluster;
 	const char *comp;
 
 	if (!path[0]) {
@@ -145,10 +145,10 @@ static int dir_iter_lookup(struct ghostfs *gfs, struct dir_iter *it, const char 
 		return 0;
 	}
 
-	if (cluster_get(gfs, 0, &c0) < 0)
+	if (cluster_get(gfs, 0, &cluster) < 0)
 		return 0;
 
-	dir_iter_init(it, gfs, c0);
+	dir_iter_init(it, gfs, cluster);
 
 	comp = path + 1; // skip first slash
 	if (!comp[0]) // root
@@ -157,17 +157,16 @@ static int dir_iter_lookup(struct ghostfs *gfs, struct dir_iter *it, const char 
 	for (;;) {
 		if (component_eq(comp, it->entry->filename)) {
 			const char *next = strchr(comp, '/');
-			struct cluster *child;
 
 			if (!next[0]) // finished
 				return 1;
 			if (!dir_entry_is_directory(it->entry)) // not a valid path
 				return 0;
-			if (cluster_get(gfs, it->entry->cluster, &child) < 0)
+			if (cluster_get(gfs, it->entry->cluster, &cluster) < 0)
 				return 0;
 
 			// start searching in child directory
-			dir_iter_init(it, gfs, child);
+			dir_iter_init(it, gfs, cluster);
 			comp = next + 1;
 			continue;
 		}
