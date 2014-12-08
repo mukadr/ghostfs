@@ -21,34 +21,6 @@ struct ghostfs_header {
 	uint16_t clusters;
 } __attribute__((packed));
 
-struct ghostfs {
-	int status;
-	struct ghostfs_header hdr;
-	struct steg *steg;
-	struct cluster **clusters; // cluster cache
-};
-
-struct cluster_header {
-	uint16_t next;
-	uint8_t used;
-	uint8_t dirty; // unused byte. we use it only in-memory to know if the cache entry is dirty
-} __attribute__((packed));
-
-struct cluster {
-	unsigned char data[4092];
-	struct cluster_header hdr;
-} __attribute__((packed));
-
-static inline void cluster_set_dirty(struct cluster *cluster, int dirty)
-{
-	cluster->hdr.dirty = dirty;
-}
-
-static inline int cluster_is_dirty(const struct cluster *cluster)
-{
-	return cluster->hdr.dirty;
-}
-
 /*
  * Root directory '/' is stored at cluster 0.
  *
@@ -73,6 +45,40 @@ static inline uint32_t dir_entry_size(const struct dir_entry *e)
 	return e->size & 0x7FFFFFFF;
 }
 
+static inline int dir_entry_used(const struct dir_entry *e)
+{
+	return e->filename[0] != '\0';
+}
+
+struct ghostfs {
+	int status;
+	struct ghostfs_header hdr;
+	struct steg *steg;
+	struct cluster **clusters; // cluster cache
+	struct dir_entry root_entry;
+};
+
+struct cluster_header {
+	uint16_t next;
+	uint8_t used;
+	uint8_t dirty; // unused byte. we use it only in-memory to know if the cache entry is dirty
+} __attribute__((packed));
+
+struct cluster {
+	unsigned char data[4092];
+	struct cluster_header hdr;
+} __attribute__((packed));
+
+static inline void cluster_set_dirty(struct cluster *cluster, int dirty)
+{
+	cluster->hdr.dirty = dirty;
+}
+
+static inline int cluster_is_dirty(const struct cluster *cluster)
+{
+	return cluster->hdr.dirty;
+}
+
 static int cluster_get(struct ghostfs *gfs, int nr, struct cluster **pcluster);
 static int write_cluster(struct ghostfs *gfs, struct cluster *cluster, int nr);
 static int read_cluster(struct ghostfs *gfs, struct cluster *cluster, int nr);
@@ -85,12 +91,15 @@ struct dir_iter {
 	int entry_nr; // to make the code simpler
 };
 
-static void dir_iter_init(struct dir_iter *it, struct ghostfs *gfs, struct cluster *cluster)
+static int dir_iter_init(struct ghostfs *gfs, struct dir_iter *it, int cluster_nr)
 {
+	if (cluster_get(gfs, cluster_nr, &it->cluster) < 0)
+		return -1;
+
 	it->gfs = gfs;
-	it->cluster = cluster;
-	it->entry = (struct dir_entry *)cluster;
+	it->entry = (struct dir_entry *)it->cluster->data;
 	it->entry_nr = 0;
+	return 0;
 }
 
 static int dir_iter_next(struct dir_iter *it)
@@ -119,7 +128,7 @@ static int dir_iter_next_used(struct dir_iter *it)
 	do {
 		if (!dir_iter_next(&temp))
 			return 0;
-	} while (it->entry->filename[0] == '\0');
+	} while (!dir_entry_used(it->entry));
 
 	*it = temp;
 	return 1;
@@ -135,9 +144,8 @@ static int component_eq(const char *comp, const char *name)
 	return (!*comp || *comp == '/') && !*name;
 }
 
-static int dir_iter_lookup(struct ghostfs *gfs, struct dir_iter *it, const char *path)
+static int dir_iter_lookup(struct ghostfs *gfs, struct dir_iter *it, const char *path, int skip_last)
 {
-	struct cluster *cluster;
 	const char *comp;
 
 	if (!path[0]) {
@@ -145,28 +153,26 @@ static int dir_iter_lookup(struct ghostfs *gfs, struct dir_iter *it, const char 
 		return 0;
 	}
 
-	if (cluster_get(gfs, 0, &cluster) < 0)
+	if (dir_iter_init(gfs, it, 0) < 0)
 		return 0;
 
-	dir_iter_init(it, gfs, cluster);
-
 	comp = path + 1; // skip first slash
-	if (!comp[0]) // root
+	if (!comp[0] || (skip_last && !strchr(comp, '/'))) {
+		it->entry = &gfs->root_entry;
 		return 1;
+	}
 
 	for (;;) {
 		if (component_eq(comp, it->entry->filename)) {
 			const char *next = strchr(comp, '/');
 
-			if (!next[0]) // finished
+			if (!next[0] || (skip_last && !strchr(next + 1, '/'))) // finished
 				return 1;
 			if (!dir_entry_is_directory(it->entry)) // not a valid path
 				return 0;
-			if (cluster_get(gfs, it->entry->cluster, &cluster) < 0)
-				return 0;
-
 			// start searching in child directory
-			dir_iter_init(it, gfs, cluster);
+			if (dir_iter_init(gfs, it, it->entry->cluster) < 0)
+				return 0;
 			comp = next + 1;
 			continue;
 		}
@@ -174,6 +180,75 @@ static int dir_iter_lookup(struct ghostfs *gfs, struct dir_iter *it, const char 
 			return 0;
 	}
 	// unreachable
+}
+
+static const char *last_component(const char *path)
+{
+	const char *s;
+
+	while ((s = strchr(path, '/')) != NULL)
+		path = s + 1;
+
+	return path;
+}
+
+static int dir_contains(struct ghostfs *gfs, int cluster_nr, const char *name, struct dir_entry **empty_slot)
+{
+	struct dir_iter it;
+
+	if (dir_iter_init(gfs, &it, cluster_nr) < 0)
+		return 0;
+
+	if (empty_slot)
+		*empty_slot = NULL;
+
+	do {
+		if (empty_slot && !*empty_slot && !dir_entry_used(it.entry)) {
+			*empty_slot = it.entry;
+			continue;
+		}
+		if (!strcmp(it.entry->filename, name))
+			return 1;
+	} while (dir_iter_next(&it));
+
+	return 0;
+}
+
+// only supports regular files
+int ghostfs_mknod(struct ghostfs *gfs, const char *path)
+{
+	struct dir_iter it;
+	const char *name;
+	struct dir_entry *slot = NULL;
+
+	if (!dir_iter_lookup(gfs, &it, path, 1)) {
+		warnx("fs: ghostfs_mknod: invalid path");
+		return -1;
+	}
+
+	if (!dir_entry_is_directory(it.entry)) {
+		warnx("fs: ghostfs_mknod: invalid path");
+		return -1;
+	}
+
+	name = last_component(path);
+
+	if (dir_contains(gfs, it.entry->cluster, name, &slot)) {
+		warnx("fs: ghostfs_mknod: file exists");
+		return -1;
+	}
+
+	// cluster is full
+	if (!slot) {
+		// TODO: expand number of clusters
+		return 0;
+	}
+
+	strncpy(slot->filename, name, FILENAME_SIZE);
+	slot->filename[FILENAME_SIZE - 1] = '\0';
+	slot->cluster = 0;
+	slot->size = 0;
+	return 1;
 }
 
 static int cluster_get(struct ghostfs *gfs, int nr, struct cluster **pcluster)
@@ -313,6 +388,19 @@ int ghostfs_status(const struct ghostfs *gfs)
 	return gfs->status;
 }
 
+static void print_dir_entries(struct ghostfs *gfs)
+{
+	struct dir_iter it;
+
+	if (dir_iter_init(gfs, &it, 0) < 0)
+		return;
+
+	do {
+		if (dir_entry_used(it.entry))
+			printf("'%s'\n", it.entry->filename);
+	} while (dir_iter_next_used(&it));
+}
+
 int ghostfs_mount(struct ghostfs **pgfs, const char *filename)
 {
 	struct ghostfs *gfs;
@@ -323,6 +411,8 @@ int ghostfs_mount(struct ghostfs **pgfs, const char *filename)
 		return -1;
 	}
 	*pgfs = gfs;
+
+	gfs->root_entry.size = 0x80000000;
 
 	if (steg_open(&gfs->steg, filename) < 0) {
 		free(gfs);
@@ -340,6 +430,8 @@ int ghostfs_mount(struct ghostfs **pgfs, const char *filename)
 		ghostfs_umount(gfs);
 		return -1;
 	}
+
+	print_dir_entries(gfs);
 
 	return 0;
 }
