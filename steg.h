@@ -1,7 +1,5 @@
 /*
  * Steganography interface
- *
- * Multiple steganography methods implement this interface
  */
 #ifndef GHOST_STEG_H
 #define GHOST_STEG_H
@@ -14,20 +12,18 @@ enum steg_type {
 	STEG_WAV,
 };
 
-struct steg;
+struct steg {
+	int fd;
+	unsigned char *map;
+	size_t len;
+	const struct steg_operations *ops;
+};
 
 struct steg_operations {
 	int (*read)(struct steg *steg, void *buf, size_t size, size_t offset, int bits);
 	int (*write)(struct steg *steg, const void *buf, size_t size, size_t offset, int bits);
 	void (*release)(struct steg *steg);
 	size_t (*capacity)(struct steg *steg);
-};
-
-struct steg {
-	int fd;
-	unsigned char *map;
-	size_t len;
-	const struct steg_operations *ops;
 };
 
 int steg_init(struct steg *steg, const char *filename, const struct steg_operations *ops);
