@@ -1,4 +1,5 @@
 #include <err.h>
+#include <errno.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -14,7 +15,7 @@ struct wav {
 };
 
 // for now, bits is always 1
-static ssize_t wav_read(struct steg *steg, void *buf, size_t size, size_t offset, int bits)
+static int wav_read(struct steg *steg, void *buf, size_t size, size_t offset, int bits)
 { 
 	struct wav *wav = container_of(steg, struct wav, steg);
 	unsigned char *bp;
@@ -23,10 +24,8 @@ static ssize_t wav_read(struct steg *steg, void *buf, size_t size, size_t offset
 	// translate byte offset to sample offset
 	offset = offset * 8 * wav->bps;
 
-	if (offset + size*8*wav->bps >= wav->len) {
-		warnx("wav: trying to read beyond data section");
-		return -1;
-	}
+	if (offset + size*8*wav->bps >= wav->len)
+		return -EINVAL;
 
 	bp = buf;
 	for (i = 0; i < size; i++) {
@@ -41,27 +40,23 @@ static ssize_t wav_read(struct steg *steg, void *buf, size_t size, size_t offset
 		*bp++ = b;
 	}
 
-	return size;
+	return 0;
 }
 
-static ssize_t wav_write(struct steg *steg, const void *buf, size_t size, size_t offset, int bits)
+static int wav_write(struct steg *steg, const void *buf, size_t size, size_t offset, int bits)
 {
 	struct wav *wav = container_of(steg, struct wav, steg);
 	const unsigned char *bp;
-	size_t left;
 	int bit;
 
 	// translate byte offset to sample offset
 	offset = offset * 8 * wav->bps;
 
-	if (offset + size*8*wav->bps >= wav->len) {
-		warnx("wav: trying to write beyond data section");
-		return -1;
-	}
+	if (offset + size*8*wav->bps >= wav->len)
+		return -EINVAL;
 
 	bp = buf;
 	bit = 0;
-	left = size;
 	for (;;) {
 		if ((bp[0] & (1 << bit)) != 0)
 			wav->data[offset] |= 1;
@@ -73,14 +68,14 @@ static ssize_t wav_write(struct steg *steg, const void *buf, size_t size, size_t
 
 		if (bit == 8) {
 			bit = 0;
-			if (left == 1)
+			if (size == 1)
 				break;
-			left--;
+			size--;
 			bp++;
 		}
 	}
 
-	return size;
+	return 0;
 }
 
 static size_t wav_capacity(struct steg *steg)
@@ -96,7 +91,7 @@ static void wav_release(struct steg *steg)
 	free(wav);
 }
 
-static const struct steg_ops wav_ops = {
+static const struct steg_operations wav_ops = {
 	.read = wav_read,
 	.write = wav_write,
 	.capacity = wav_capacity,
@@ -118,13 +113,15 @@ static int wav_init(struct wav *wav)
 	}
 	if (len < 24) {
 		warnx("wav: incomplete or no 'fmt ' section found");
-		return -1;
+		return -EMEDIUMTYPE;
 	}
+
 	audio_fmt = *(uint16_t *)(p + 8);
 	if (audio_fmt != 1) {
 		warnx("wav: only PCM format supported");
-		return -1;
+		return -EMEDIUMTYPE;
 	}
+
 	wav->bps = *(uint16_t *)(p + 22) / 8;
 
 	while (len >= 4) {
@@ -135,39 +132,39 @@ static int wav_init(struct wav *wav)
 	}
 	if (len < 8) {
 		warnx("wav: incomplete or no 'data' section found");
-		return -1;
+		return -EMEDIUMTYPE;
 	}
+
 	wav->data = p + 8;
 	wav->len = *(uint32_t *)(p + 4);
 
 	if (wav->len + (wav->data - wav->steg.map) > wav->steg.len) {
 		warnx("wav: bad data section");
-		return -1;
+		return -EMEDIUMTYPE;
 	}
 
-	printf("bps = %d\n", wav->bps);
-	printf("data size = %lu\n", wav->len);
 	return 0;
 }
 
 int wav_open(struct steg **steg, const char *filename)
 {
 	struct wav *wav;
+	int ret;
 
 	wav = malloc(sizeof(*wav));
-	if (!wav) {
-		warn("wav: malloc");
-		return -1;
-	}
+	if (!wav)
+		return -ENOMEM;
 
-	if (steg_init(&wav->steg, filename, &wav_ops) < 0) {
+	ret = steg_init(&wav->steg, filename, &wav_ops);
+	if (ret < 0) {
 		free(wav);
-		return -1;
+		return ret;
 	}
 
-	if (wav_init(wav) < 0) {
+	ret = wav_init(wav);
+	if (ret < 0) {
 		steg_close(&wav->steg);
-		return -1;
+		return ret;
 	}
 
 	*steg = &wav->steg;
