@@ -182,7 +182,7 @@ static int dir_iter_lookup(struct ghostfs *gfs, struct dir_iter *it, const char 
 			const char *next = strchr(comp, '/');
 
 			// finished
-			if (!next[0] || (skip_last && !strchr(next + 1, '/')))
+			if (!next || (skip_last && !strchr(next + 1, '/')))
 				return 0;
 
 			if (!dir_entry_is_directory(it->entry))
