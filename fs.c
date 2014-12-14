@@ -483,23 +483,29 @@ int ghostfs_format(const char *filename)
 		steg_close(gfs.steg);
 		return -ENOSPC;
 	}
-	if (count > 0xFFFF)
+	if (count > 0xFFFF) {
+		warnx("fs: %lu clusters available, using only %d", count, 0xFFFF);
 		count = 0xFFFF;
+	}
 
 	gfs.hdr.cluster_count = count;
 	memset(&cluster, 0, sizeof(cluster));
 
 	ret = write_header(&gfs, &cluster);
-	if (ret < 0)
+	if (ret < 0) {
+		steg_close(gfs.steg);
 		return ret;
+	}
 
 	for (i = 1; i < count; i++) {
 		ret = write_cluster(&gfs, &cluster, i);
-		if (ret < 0)
+		if (ret < 0) {
+			steg_close(gfs.steg);
 			return ret;
+		}
 	}
 
-	return 0;
+	return steg_close(gfs.steg);
 }
 
 static void print_dir_entries(struct ghostfs *gfs, int cluster_nr, const char *parent)
