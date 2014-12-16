@@ -277,7 +277,7 @@ static int find_free_cluster(struct ghostfs *gfs)
 	return -ENOSPC;
 }
 
-static int create_entry(struct ghostfs *gfs, const char *path, int is_dir)
+static int create_entry(struct ghostfs *gfs, const char *path, bool is_dir)
 {
 	struct dir_iter it;
 	struct dir_entry *entry;
@@ -285,7 +285,7 @@ static int create_entry(struct ghostfs *gfs, const char *path, int is_dir)
 	int cluster_nr = 0;
 	int ret;
 
-	ret = dir_iter_lookup(gfs, &it, path, 1);
+	ret = dir_iter_lookup(gfs, &it, path, true);
 	if (ret < 0)
 		return ret;
 
