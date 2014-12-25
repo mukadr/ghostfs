@@ -28,7 +28,6 @@ struct steg_operations {
 
 int steg_init(struct steg *steg, const char *filename, const struct steg_operations *ops);
 int steg_open(struct steg **steg, const char *filename);
-int steg_sync(struct steg *steg);
 int steg_close(struct steg *steg);
 
 int steg_read(struct steg *steg, void *buf, size_t size, size_t offset, int bits);
