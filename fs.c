@@ -89,7 +89,7 @@ struct dir_iter {
 	struct ghostfs *gfs;
 	struct cluster *cluster;
 	struct dir_entry *entry;
-	int entry_nr; // to make the code simpler
+	int entry_nr;
 };
 
 static int dir_iter_init(struct ghostfs *gfs, struct dir_iter *it, int cluster_nr)
