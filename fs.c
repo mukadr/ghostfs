@@ -571,7 +571,7 @@ static void print_dir_entries(struct ghostfs *gfs, int cluster_nr, const char *p
 	} while (dir_iter_next_used(&it));
 }
 
-static void print_filesystem(struct ghostfs *gfs)
+void ghostfs_debug(struct ghostfs *gfs)
 {
 	print_dir_entries(gfs, 0, "");
 }
@@ -606,8 +606,6 @@ int ghostfs_mount(struct ghostfs **pgfs, const char *filename)
 		ghostfs_free(gfs);
 		return -ENOMEM;
 	}
-
-	print_filesystem(gfs);
 
 	return 0;
 }

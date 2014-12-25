@@ -48,6 +48,9 @@ int main(int argc, char *argv[])
 		if (ret < 0)
 			goto failed;
 		break;
+	case '?':
+		ghostfs_debug(gfs);
+		break;
 	}
 
 	ret = ghostfs_umount(gfs);
