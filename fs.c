@@ -294,7 +294,7 @@ static int alloc_cluster(struct ghostfs *gfs, struct cluster **pcluster)
 
 	memset(c, 0, sizeof(*c));
 	c->hdr.used = 1;
-	cluster_set_dirty(c, 1);
+	cluster_set_dirty(c, true);
 
 	if (pcluster)
 		*pcluster = c;
@@ -305,7 +305,7 @@ static int alloc_cluster(struct ghostfs *gfs, struct cluster **pcluster)
 static void free_cluster(struct cluster *c)
 {
 	c->hdr.used = 0;
-	cluster_set_dirty(c, 1);
+	cluster_set_dirty(c, true);
 }
 
 static int create_entry(struct ghostfs *gfs, const char *path, bool is_dir)
@@ -371,7 +371,7 @@ static int create_entry(struct ghostfs *gfs, const char *path, bool is_dir)
 	entry->size = is_dir ? 0x80000000 : 0;
 	entry->cluster = cluster_nr;
 
-	cluster_set_dirty(it.cluster, 1);
+	cluster_set_dirty(it.cluster, true);
 
 	return 0;
 }
@@ -425,7 +425,7 @@ static int write_cluster(struct ghostfs *gfs, struct cluster *cluster, int nr)
 	if (ret < 0)
 		return ret;
 
-	cluster_set_dirty(cluster, 0);
+	cluster_set_dirty(cluster, false);
 	return 0;
 }
 
@@ -438,7 +438,7 @@ static int read_cluster(struct ghostfs *gfs, struct cluster *cluster, int nr)
 	if (ret < 0)
 		return ret;
 
-	cluster_set_dirty(cluster, 0);
+	cluster_set_dirty(cluster, false);
 	return 0;
 }
 
@@ -638,7 +638,7 @@ int ghostfs_sync(struct ghostfs *gfs)
 		if (ret < 0)
 			return ret;
 
-		cluster_set_dirty(c, 0);
+		cluster_set_dirty(c, false);
 	}
 
 	return 0;
