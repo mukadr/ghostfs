@@ -230,12 +230,14 @@ static int find_empty_entry(struct ghostfs *gfs, struct dir_iter *iter, int clus
 		ret = dir_iter_next(&it);
 		if (ret < 0)
 			return ret;
-		if (!ret)
-			return -ENOSPC;
+		if (!ret) {
+			ret = -ENOSPC;
+			break;
+		}
 	}
 
 	*iter = it;
-	return 1;
+	return ret;
 }
 
 static int dir_contains(struct ghostfs *gfs, int cluster_nr, const char *name)
@@ -259,28 +261,58 @@ static int dir_contains(struct ghostfs *gfs, int cluster_nr, const char *name)
 	return ret;
 }
 
-static int find_free_cluster(struct ghostfs *gfs)
+static int find_free_cluster(struct ghostfs *gfs, struct cluster **pcluster)
 {
-	int ret, i;
+	struct cluster *c;
+	int i;
 
 	for (i = 1; i < gfs->hdr.cluster_count; i++) {
-		struct cluster *c;
+		int nr;
 
-		ret = cluster_get(gfs, i, &c);
-		if (ret < 0)
-			return ret;
+		nr = cluster_get(gfs, i, &c);
+		if (nr < 0)
+			return nr;
 
-		if (!c->hdr.used)
+		if (!c->hdr.used) {
+			if (pcluster)
+				*pcluster = c;
 			return i;
+		}
 	}
 
 	return -ENOSPC;
+}
+
+static int alloc_cluster(struct ghostfs *gfs, struct cluster **pcluster)
+{
+	struct cluster *c;
+	int nr;
+
+	nr = find_free_cluster(gfs, &c);
+	if (nr < 0)
+		return nr;
+
+	memset(c, 0, sizeof(*c));
+	c->hdr.used = 1;
+	cluster_set_dirty(c, 1);
+
+	if (pcluster)
+		*pcluster = c;
+
+	return nr;
+}
+
+static void free_cluster(struct cluster *c)
+{
+	c->hdr.used = 0;
+	cluster_set_dirty(c, 1);
 }
 
 static int create_entry(struct ghostfs *gfs, const char *path, bool is_dir)
 {
 	struct dir_iter it;
 	struct dir_entry *entry;
+	struct cluster *prev = NULL, *next;
 	const char *name;
 	int cluster_nr = 0;
 	int ret;
@@ -301,26 +333,35 @@ static int create_entry(struct ghostfs *gfs, const char *path, bool is_dir)
 
 	ret = find_empty_entry(gfs, &it, it.entry->cluster);
 	if (ret < 0) {
-		if (ret == -ENOSPC) {
-			// TODO: expand number of clusters
+		int nr;
+
+		if (ret != -ENOSPC)
+			return ret;
+
+		nr = alloc_cluster(gfs, &next);
+		if (nr < 0)
+			return nr;
+
+		prev = it.cluster;
+		ret = find_empty_entry(gfs, &it, nr);
+		if (ret < 0) { // should never happen
+			warnx("BUG: failed to find empty entry in empty cluster");
+			free_cluster(next);
+			return ret;
 		}
-		return ret;
+
+		prev->hdr.next = nr;
+		cluster_set_dirty(prev, true);
 	}
 
 	if (is_dir) {
-		struct cluster *c;
-
-		cluster_nr = find_free_cluster(gfs);
-		if (cluster_nr < 0)
+		cluster_nr = alloc_cluster(gfs, NULL);
+		if (cluster_nr < 0) {
+			prev->hdr.next = 0;
+			cluster_set_dirty(prev, false);
+			free_cluster(next);
 			return cluster_nr;
-
-		ret = cluster_get(gfs, cluster_nr, &c);
-		if (ret < 0)
-			return ret;
-
-		memset(c, 0, sizeof(*c));
-		c->hdr.used = 1;
-		cluster_set_dirty(c, 1);
+		}
 	}
 
 	entry = it.entry;
