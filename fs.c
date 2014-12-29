@@ -312,7 +312,7 @@ static int create_entry(struct ghostfs *gfs, const char *path, bool is_dir)
 {
 	struct dir_iter it;
 	struct dir_entry *entry;
-	struct cluster *prev = NULL, *next;
+	struct cluster *prev = NULL, *next = NULL;
 	const char *name;
 	int cluster_nr = 0;
 	int ret;
@@ -357,9 +357,11 @@ static int create_entry(struct ghostfs *gfs, const char *path, bool is_dir)
 	if (is_dir) {
 		cluster_nr = alloc_cluster(gfs, NULL);
 		if (cluster_nr < 0) {
-			prev->hdr.next = 0;
-			cluster_set_dirty(prev, false);
-			free_cluster(next);
+			if (next) {
+				free_cluster(next);
+				prev->hdr.next = 0;
+				cluster_set_dirty(prev, false);
+			}
 			return cluster_nr;
 		}
 	}
