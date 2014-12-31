@@ -159,7 +159,7 @@ static bool component_eq(const char *comp, const char *name, size_t n)
 	return (!*comp || *comp == '/') && !*name;
 }
 
-static int dir_iter_lookup(struct ghostfs *gfs, struct dir_iter *it, const char *path, int skip_last)
+static int dir_iter_lookup(struct ghostfs *gfs, struct dir_iter *it, const char *path, bool skip_last)
 {
 	const char *comp;
 	int ret;
