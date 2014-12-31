@@ -360,7 +360,6 @@ static int create_entry(struct ghostfs *gfs, const char *path, bool is_dir)
 			if (next) {
 				free_cluster(next);
 				prev->hdr.next = 0;
-				cluster_set_dirty(prev, false);
 			}
 			return cluster_nr;
 		}
