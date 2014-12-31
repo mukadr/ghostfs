@@ -636,8 +636,6 @@ int ghostfs_sync(struct ghostfs *gfs)
 		ret = write_cluster(gfs, c, i);
 		if (ret < 0)
 			return ret;
-
-		cluster_set_dirty(c, false);
 	}
 
 	return 0;
