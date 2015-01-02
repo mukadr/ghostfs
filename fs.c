@@ -140,7 +140,7 @@ static int dir_iter_next_used(struct dir_iter *it)
 		ret = dir_iter_next(&temp);
 		if (ret <= 0)
 			return ret;
-	} while (!dir_entry_used(it->entry));
+	} while (!dir_entry_used(temp.entry));
 
 	*it = temp;
 	return 1;
