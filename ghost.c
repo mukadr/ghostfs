@@ -48,6 +48,24 @@ int main(int argc, char *argv[])
 		if (ret < 0)
 			goto failed;
 		break;
+	case 'r':
+		if (argc != 4) {
+			printf("unlink: missing filename\n");
+			return 1;
+		}
+		ret = ghostfs_unlink(gfs, argv[3]);
+		if (ret < 0)
+			goto failed;
+		break;
+	case 'R':
+		if (argc != 4) {
+			printf("rmdir: missing filename\n");
+			return 1;
+		}
+		ret = ghostfs_rmdir(gfs, argv[3]);
+		if (ret < 0)
+			goto failed;
+		break;
 	case '?':
 		ghostfs_debug(gfs);
 		break;

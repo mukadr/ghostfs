@@ -387,6 +387,71 @@ int ghostfs_mkdir(struct ghostfs *gfs, const char *path)
 	return create_entry(gfs, path, true);
 }
 
+static int remove_entry(struct ghostfs *gfs, const char *path, bool is_dir)
+{
+	struct cluster *cluster;
+	struct dir_iter it;
+	int ret;
+
+	ret = dir_iter_lookup(gfs, &it, path, false);
+	if (ret < 0)
+		return ret;
+
+	if (is_dir != dir_entry_is_directory(it.entry))
+		return is_dir ? -ENOTDIR : -EISDIR;
+
+	// unlink
+	it.entry->filename[0] = '\0';
+	cluster_set_dirty(it.cluster, true);
+
+	// no clusters, we are done
+	if (!it.entry->cluster)
+		return 0;
+
+	ret = dir_iter_init(gfs, &it, it.entry->cluster);
+	if (ret < 0)
+		return ret;
+
+	cluster = it.cluster;
+
+	// make sure directory is empty
+	if (is_dir) {
+		if (dir_entry_used(it.entry))
+			return -ENOTEMPTY;
+
+		ret = dir_iter_next_used(&it);
+		if (ret < 0)
+			return ret;
+		if (ret)
+			return -ENOTEMPTY;
+	}
+
+	// free clusters
+	for (;;) {
+		cluster->hdr.used = 0;
+		cluster_set_dirty(cluster, true);
+
+		if (!cluster->hdr.next)
+			break;
+
+		ret = cluster_get(gfs, cluster->hdr.next, &cluster);
+		if (ret < 0)
+			return ret;
+	}
+
+	return 0;
+}
+
+int ghostfs_unlink(struct ghostfs *gfs, const char *path)
+{
+	return remove_entry(gfs, path, false);
+}
+
+int ghostfs_rmdir(struct ghostfs *gfs, const char *path)
+{
+	return remove_entry(gfs, path, true);
+}
+
 static int cluster_get(struct ghostfs *gfs, int nr, struct cluster **pcluster)
 {
 	int ret;
