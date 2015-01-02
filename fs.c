@@ -379,12 +379,12 @@ static int create_entry(struct ghostfs *gfs, const char *path, bool is_dir)
 
 int ghostfs_create(struct ghostfs *gfs, const char *path)
 {
-	return create_entry(gfs, path, 0);
+	return create_entry(gfs, path, false);
 }
 
 int ghostfs_mkdir(struct ghostfs *gfs, const char *path)
 {
-	return create_entry(gfs, path, 1);
+	return create_entry(gfs, path, true);
 }
 
 static int cluster_get(struct ghostfs *gfs, int nr, struct cluster **pcluster)
