@@ -1,5 +1,6 @@
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "fs.h"
 
@@ -63,6 +64,15 @@ int main(int argc, char *argv[])
 			return 1;
 		}
 		ret = ghostfs_rmdir(gfs, argv[3]);
+		if (ret < 0)
+			goto failed;
+		break;
+	case 't':
+		if (argc != 5) {
+			printf("truncate: missing filename and size\n");
+			return 1;
+		}
+		ret = ghostfs_truncate(gfs, argv[3], atol(argv[4]));
 		if (ret < 0)
 			goto failed;
 		break;

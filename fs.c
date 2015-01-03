@@ -297,9 +297,9 @@ static int get_free_clusters(struct ghostfs *gfs, int count, struct cluster **pf
 					prev->hdr.next = pos;
 				}
 				prev = c;
+				pos++;
 				break;
 			}
-
 			pos++;
 		}
 		count--;
@@ -492,6 +492,72 @@ int ghostfs_rmdir(struct ghostfs *gfs, const char *path)
 	return remove_entry(gfs, path, true);
 }
 
+static int last_cluster(struct ghostfs *gfs, int first, struct cluster **pcluster)
+{
+	struct cluster *c;
+	int ret;
+
+	do {
+		ret = cluster_get(gfs, first, &c);
+		if (ret < 0)
+			return ret;
+		first = c->hdr.next;
+	} while (first);
+
+	return 0;
+}
+
+int ghostfs_truncate(struct ghostfs *gfs, const char *path, off_t new_size)
+{
+	struct dir_iter it;
+	int old_nr, nr;
+	int ret;
+
+	ret = dir_iter_lookup(gfs, &it, path, false);
+	if (ret < 0)
+		return ret;
+
+	if (dir_entry_is_directory(it.entry))
+		return -EISDIR;
+
+	old_nr = it.entry->size / CLUSTER_SIZE;
+	if (it.entry->size % CLUSTER_SIZE)
+		old_nr++;
+
+	nr = new_size / CLUSTER_SIZE;
+	if (new_size % CLUSTER_SIZE)
+		nr++;
+
+	if (nr > old_nr) { // increase cluster count
+		struct cluster *last = NULL;
+
+		if (it.entry->cluster) {
+			ret = last_cluster(gfs, it.entry->cluster, &last);
+			if (ret < 0)
+				return ret;
+		}
+
+		ret = alloc_clusters(gfs, nr - old_nr, NULL, false);
+		if (ret < 0)
+			return ret;
+
+		if (last) {
+			last->hdr.next = ret;
+			cluster_set_dirty(last, true);
+		} else {
+			it.entry->cluster = ret;
+		}
+	} else if (nr < old_nr) { // decrease cluster count
+		// TODO
+		return -ENOSPC;
+	}
+
+	dir_entry_set_size(it.entry, new_size, false);
+	cluster_set_dirty(it.cluster, true);
+
+	return 0;
+}
+
 static int cluster_get(struct ghostfs *gfs, int nr, struct cluster **pcluster)
 {
 	int ret;
@@ -671,7 +737,7 @@ static void print_dir_entries(struct ghostfs *gfs, int cluster_nr, const char *p
 				printf("/\n");
 				print_dir_entries(gfs, it.entry->cluster, buf);
 			} else {
-				printf("\n");
+				printf(" {%d}\n", it.entry->size);
 			}
 		}
 	} while (dir_iter_next_used(&it));
