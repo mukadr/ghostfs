@@ -268,45 +268,79 @@ static int dir_contains(struct ghostfs *gfs, int cluster_nr, const char *name)
 	return ret;
 }
 
-static int find_free_cluster(struct ghostfs *gfs, struct cluster **pcluster)
+// returns the head of a list of free clusters
+// if there is not enough clusters available, -ENOSPC is returned instead
+static int get_free_clusters(struct ghostfs *gfs, int count, struct cluster **pfirst)
 {
-	struct cluster *c;
-	int i;
+	struct cluster *prev = NULL;
+	int first = 0;
+	int pos = 1;
 
-	for (i = 1; i < gfs->hdr.cluster_count; i++) {
-		int nr;
+	while (count > 0) {
+		for (;;) {
+			struct cluster *c;
+			int ret;
 
-		nr = cluster_get(gfs, i, &c);
-		if (nr < 0)
-			return nr;
+			if (pos >= gfs->hdr.cluster_count)
+				return -ENOSPC;
 
-		if (!c->hdr.used) {
-			if (pcluster)
-				*pcluster = c;
-			return i;
+			ret = cluster_get(gfs, pos, &c);
+			if (ret < 0)
+				return ret;
+
+			if (!c->hdr.used) {
+				if (!first) {
+					first = pos;
+					if (pfirst)
+						*pfirst = c;
+				} else {
+					prev->hdr.next = pos;
+				}
+				prev = c;
+				break;
+			}
+
+			pos++;
 		}
+		count--;
 	}
 
-	return -ENOSPC;
+	prev->hdr.next = 0;
+
+	return first;
 }
 
-static int alloc_cluster(struct ghostfs *gfs, struct cluster **pcluster)
+// allocates a list of clusters
+static int alloc_clusters(struct ghostfs *gfs, int count, struct cluster **pfirst, bool zero)
 {
 	struct cluster *c;
-	int nr;
+	int first;
+	int ret;
 
-	nr = find_free_cluster(gfs, &c);
-	if (nr < 0)
-		return nr;
+	first = get_free_clusters(gfs, count, &c);
+	if (first < 0)
+		return first;
 
-	memset(c, 0, sizeof(*c));
-	c->hdr.used = 1;
-	cluster_set_dirty(c, true);
+	if (pfirst)
+		*pfirst = c;
 
-	if (pcluster)
-		*pcluster = c;
+	// mark list as used
+	for (;;) {
+		if (zero)
+			memset(c->data, 0, sizeof(c->data));
 
-	return nr;
+		c->hdr.used = 1;
+		cluster_set_dirty(c, true);
+
+		if (!c->hdr.next)
+			break;
+
+		ret = cluster_get(gfs, c->hdr.next, &c);
+		if (ret < 0)
+			return ret;
+	}
+
+	return first;
 }
 
 static void free_cluster(struct cluster *c)
@@ -345,7 +379,7 @@ static int create_entry(struct ghostfs *gfs, const char *path, bool is_dir)
 		if (ret != -ENOSPC)
 			return ret;
 
-		nr = alloc_cluster(gfs, &next);
+		nr = alloc_clusters(gfs, 1, &next, true);
 		if (nr < 0)
 			return nr;
 
@@ -362,7 +396,7 @@ static int create_entry(struct ghostfs *gfs, const char *path, bool is_dir)
 	}
 
 	if (is_dir) {
-		cluster_nr = alloc_cluster(gfs, NULL);
+		cluster_nr = alloc_clusters(gfs, 1, NULL, true);
 		if (cluster_nr < 0) {
 			if (next) {
 				free_cluster(next);
