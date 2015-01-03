@@ -428,8 +428,7 @@ static int remove_entry(struct ghostfs *gfs, const char *path, bool is_dir)
 
 	// free clusters
 	for (;;) {
-		cluster->hdr.used = 0;
-		cluster_set_dirty(cluster, true);
+		free_cluster(cluster);
 
 		if (!cluster->hdr.next)
 			break;
