@@ -46,6 +46,13 @@ static inline uint32_t dir_entry_size(const struct dir_entry *e)
 	return e->size & 0x7FFFFFFF;
 }
 
+static inline void dir_entry_set_size(struct dir_entry *e, uint32_t new_size, bool is_dir)
+{
+	e->size = new_size & 0x7FFFFFFF;
+	if (is_dir)
+		e->size |= 0x80000000;
+}
+
 static inline bool dir_entry_used(const struct dir_entry *e)
 {
 	return e->filename[0] != '\0';
@@ -369,7 +376,7 @@ static int create_entry(struct ghostfs *gfs, const char *path, bool is_dir)
 
 	strncpy(entry->filename, name, FILENAME_SIZE);
 	entry->filename[FILENAME_SIZE - 1] = '\0';
-	entry->size = is_dir ? 0x80000000 : 0;
+	dir_entry_set_size(entry, 0, is_dir);
 	entry->cluster = cluster_nr;
 
 	cluster_set_dirty(it.cluster, true);
