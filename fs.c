@@ -494,17 +494,23 @@ int ghostfs_rmdir(struct ghostfs *gfs, const char *path)
 
 static int last_cluster(struct ghostfs *gfs, int first, struct cluster **pcluster)
 {
-	struct cluster *c;
-	int ret;
+	for (;;) {
+		struct cluster *c;
+		int ret;
 
-	do {
 		ret = cluster_get(gfs, first, &c);
 		if (ret < 0)
 			return ret;
-		first = c->hdr.next;
-	} while (first);
 
-	return 0;
+		if (!c->hdr.next) {
+			if (pcluster)
+				*pcluster = c;
+			break;
+		}
+		first = c->hdr.next;
+	}
+
+	return first;
 }
 
 int ghostfs_truncate(struct ghostfs *gfs, const char *path, off_t new_size)
