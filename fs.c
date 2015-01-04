@@ -494,9 +494,10 @@ int ghostfs_rmdir(struct ghostfs *gfs, const char *path)
 
 static int last_cluster(struct ghostfs *gfs, int first, struct cluster **pcluster)
 {
+	int ret;
+
 	for (;;) {
 		struct cluster *c;
-		int ret;
 
 		ret = cluster_get(gfs, first, &c);
 		if (ret < 0)
