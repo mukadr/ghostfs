@@ -446,30 +446,23 @@ int ghostfs_mkdir(struct ghostfs *gfs, const char *path)
 
 static int remove_entry(struct ghostfs *gfs, const char *path, bool is_dir)
 {
-	struct cluster *cluster;
-	struct dir_iter it;
+	struct dir_iter link, it;
 	int ret;
 
-	ret = dir_iter_lookup(gfs, &it, path, false);
+	ret = dir_iter_lookup(gfs, &link, path, false);
 	if (ret < 0)
 		return ret;
 
-	if (is_dir != dir_entry_is_directory(it.entry))
+	if (is_dir != dir_entry_is_directory(link.entry))
 		return is_dir ? -ENOTDIR : -EISDIR;
 
-	// unlink
-	it.entry->filename[0] = '\0';
-	cluster_set_dirty(it.cluster, true);
-
 	// no clusters, we are done
-	if (!it.entry->cluster)
-		return 0;
+	if (!link.entry->cluster)
+		goto unlink;
 
-	ret = dir_iter_init(gfs, &it, it.entry->cluster);
+	ret = dir_iter_init(gfs, &it, link.entry->cluster);
 	if (ret < 0)
 		return ret;
-
-	cluster = it.cluster;
 
 	// make sure directory is empty
 	if (is_dir) {
@@ -483,7 +476,11 @@ static int remove_entry(struct ghostfs *gfs, const char *path, bool is_dir)
 			return -ENOTEMPTY;
 	}
 
-	free_clusters(gfs, cluster);
+	free_clusters(gfs, it.cluster);
+unlink:
+	link.entry->filename[0] = '\0';
+	cluster_set_dirty(link.cluster, true);
+
 	return 0;
 }
 
