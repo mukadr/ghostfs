@@ -88,5 +88,6 @@ int main(int argc, char *argv[])
 	return 0;
 failed:
 	fprintf(stderr, "error: %s\n", strerror(-ret));
+	ghostfs_umount(gfs);
 	return 1;
 }
