@@ -121,7 +121,7 @@ static int dir_iter_next(struct dir_iter *it)
 		struct cluster *c;
 
 		if (it->cluster->hdr.next == 0)
-			return 0;
+			return -ENOENT;
 
 		ret = cluster_get(it->gfs, it->cluster->hdr.next, &c);
 		if (ret < 0)
@@ -130,12 +130,12 @@ static int dir_iter_next(struct dir_iter *it)
 		it->cluster = c;
 		it->entry_nr = 0;
 		it->entry = (struct dir_entry *)it->cluster->data;
-		return 1;
+		return 0;
 	}
 
 	it->entry_nr++;
 	it->entry++;
-	return 1;
+	return 0;
 }
 
 static int dir_iter_next_used(struct dir_iter *it)
@@ -145,12 +145,12 @@ static int dir_iter_next_used(struct dir_iter *it)
 
 	do {
 		ret = dir_iter_next(&temp);
-		if (ret <= 0)
+		if (ret < 0)
 			return ret;
 	} while (!dir_entry_used(temp.entry));
 
 	*it = temp;
-	return 1;
+	return 0;
 }
 
 static bool component_eq(const char *comp, const char *name, size_t n)
@@ -206,12 +206,10 @@ static int dir_iter_lookup(struct ghostfs *gfs, struct dir_iter *it, const char 
 
 		ret = dir_iter_next_used(it);
 		if (ret < 0)
-			return ret;
-		if (!ret)
 			break;
 	}
 
-	return -ENOENT;
+	return ret;
 }
 
 static const char *last_component(const char *path)
@@ -224,6 +222,10 @@ static const char *last_component(const char *path)
 	return path;
 }
 
+/*
+ * Updates iter to point to the first unused entry in the cluster.
+ * If no entry is available, iter is updated to the last entry and -ENOENT is returned.
+ */
 static int find_empty_entry(struct ghostfs *gfs, struct dir_iter *iter, int cluster_nr)
 {
 	struct dir_iter it;
@@ -236,14 +238,12 @@ static int find_empty_entry(struct ghostfs *gfs, struct dir_iter *iter, int clus
 	while (dir_entry_used(it.entry)) {
 		ret = dir_iter_next(&it);
 		if (ret < 0)
-			return ret;
-		if (!ret) {
-			ret = -ENOSPC;
 			break;
-		}
 	}
 
-	*iter = it;
+	if (ret == 0 || ret == -ENOENT)
+		*iter = it;
+
 	return ret;
 }
 
@@ -258,10 +258,10 @@ static int dir_contains(struct ghostfs *gfs, int cluster_nr, const char *name)
 
 	for (;;) {
 		if (!strncmp(it.entry->filename, name, FILENAME_SIZE))
-			return 1;
+			return 0;
 
 		ret = dir_iter_next_used(&it);
-		if (ret <= 0)
+		if (ret < 0)
 			break;
 	}
 
@@ -368,7 +368,6 @@ static int free_clusters(struct ghostfs *gfs, struct cluster *c)
 static int create_entry(struct ghostfs *gfs, const char *path, bool is_dir)
 {
 	struct dir_iter it;
-	struct dir_entry *entry;
 	struct cluster *prev = NULL, *next = NULL;
 	const char *name;
 	int cluster_nr = 0;
@@ -385,14 +384,14 @@ static int create_entry(struct ghostfs *gfs, const char *path, bool is_dir)
 	if (strlen(name) > FILENAME_SIZE - 1)
 		return -ENAMETOOLONG;
 
-	if (dir_contains(gfs, it.entry->cluster, name))
+	if (dir_contains(gfs, it.entry->cluster, name) == 0)
 		return -EEXIST;
 
 	ret = find_empty_entry(gfs, &it, it.entry->cluster);
 	if (ret < 0) {
 		int nr;
 
-		if (ret != -ENOSPC)
+		if (ret != -ENOENT)
 			return ret;
 
 		nr = alloc_clusters(gfs, 1, &next, true);
@@ -422,13 +421,10 @@ static int create_entry(struct ghostfs *gfs, const char *path, bool is_dir)
 		}
 	}
 
-	entry = it.entry;
-
-	strncpy(entry->filename, name, FILENAME_SIZE);
-	entry->filename[FILENAME_SIZE - 1] = '\0';
-	dir_entry_set_size(entry, 0, is_dir);
-	entry->cluster = cluster_nr;
-
+	strncpy(it.entry->filename, name, FILENAME_SIZE);
+	it.entry->filename[FILENAME_SIZE - 1] = '\0';
+	dir_entry_set_size(it.entry, 0, is_dir);
+	it.entry->cluster = cluster_nr;
 	cluster_set_dirty(it.cluster, true);
 
 	return 0;
@@ -470,10 +466,8 @@ static int remove_entry(struct ghostfs *gfs, const char *path, bool is_dir)
 			return -ENOTEMPTY;
 
 		ret = dir_iter_next_used(&it);
-		if (ret < 0)
-			return ret;
-		if (ret)
-			return -ENOTEMPTY;
+		if (ret != -ENOENT)
+			return ret == 0 ? -ENOTEMPTY : ret;
 	}
 
 	free_clusters(gfs, it.cluster);
@@ -749,7 +743,7 @@ static void print_dir_entries(struct ghostfs *gfs, int cluster_nr, const char *p
 				printf(" {%d}\n", it.entry->size);
 			}
 		}
-	} while (dir_iter_next_used(&it));
+	} while (dir_iter_next_used(&it) == 0);
 }
 
 void ghostfs_debug(struct ghostfs *gfs)
