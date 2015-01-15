@@ -516,6 +516,9 @@ int ghostfs_truncate(struct ghostfs *gfs, const char *path, off_t new_size)
 	int old_nr, nr;
 	int ret;
 
+	if (new_size < 0)
+		return -EINVAL;
+
 	ret = dir_iter_lookup(gfs, &it, path, false);
 	if (ret < 0)
 		return ret;
@@ -551,8 +554,25 @@ int ghostfs_truncate(struct ghostfs *gfs, const char *path, off_t new_size)
 			it.entry->cluster = ret;
 		}
 	} else if (nr < old_nr) { // decrease cluster count
-		// TODO
-		return -ENOSPC;
+		struct cluster *c;
+		int i;
+		int next = it.entry->cluster;
+
+		for (i = 0; i < nr; i++) {
+			ret = cluster_get(gfs, next, &c);
+			if (ret < 0)
+				return ret;
+			next = c->hdr.next;
+		}
+
+		c->hdr.next = 0;
+		cluster_set_dirty(c, true);
+
+		ret = cluster_get(gfs, next, &c);
+		if (ret < 0)
+			return ret;
+
+		free_clusters(gfs, c);
 	}
 
 	dir_entry_set_size(it.entry, new_size, false);
