@@ -268,27 +268,34 @@ static int dir_contains(struct ghostfs *gfs, int cluster_nr, const char *name)
 	return ret;
 }
 
-// returns the head of a list of free clusters
-// if there is not enough clusters available, -ENOSPC is returned instead
-static int get_free_clusters(struct ghostfs *gfs, int count, struct cluster **pfirst)
+// allocates a list of clusters
+static int alloc_clusters(struct ghostfs *gfs, int count, struct cluster **pfirst, bool zero)
 {
 	struct cluster *prev = NULL;
+	struct cluster *c;
 	int first = 0;
 	int pos = 1;
+	int alloc = 0;
+	int ret;
 
-	while (count > 0) {
+	while (alloc < count) {
 		for (;;) {
-			struct cluster *c;
-			int ret;
-
-			if (pos >= gfs->hdr.cluster_count)
-				return -ENOSPC;
+			if (pos >= gfs->hdr.cluster_count) {
+				ret = -ENOSPC;
+				goto undo;
+			}
 
 			ret = cluster_get(gfs, pos, &c);
 			if (ret < 0)
-				return ret;
+				goto undo;
 
 			if (!c->hdr.used) {
+				if (zero)
+					memset(c->data, 0, sizeof(c->data));
+
+				c->hdr.used = 1;
+				cluster_set_dirty(c, true);
+
 				if (!first) {
 					first = pos;
 					if (pfirst)
@@ -302,45 +309,28 @@ static int get_free_clusters(struct ghostfs *gfs, int count, struct cluster **pf
 			}
 			pos++;
 		}
-		count--;
+		alloc++;
 	}
 
 	prev->hdr.next = 0;
 
 	return first;
-}
+undo:
+	pos = first;
 
-// allocates a list of clusters
-static int alloc_clusters(struct ghostfs *gfs, int count, struct cluster **pfirst, bool zero)
-{
-	struct cluster *c;
-	int first;
-	int ret;
+	while (alloc > 0) {
+		int r = cluster_get(gfs, pos, &c);
+		if (r < 0)
+			return r;
 
-	first = get_free_clusters(gfs, count, &c);
-	if (first < 0)
-		return first;
-
-	if (pfirst)
-		*pfirst = c;
-
-	// mark list as used
-	for (;;) {
-		if (zero)
-			memset(c->data, 0, sizeof(c->data));
-
-		c->hdr.used = 1;
+		c->hdr.used = 0;
 		cluster_set_dirty(c, true);
 
-		if (!c->hdr.next)
-			break;
-
-		ret = cluster_get(gfs, c->hdr.next, &c);
-		if (ret < 0)
-			return ret;
+		pos = c->hdr.next;
+		alloc--;
 	}
 
-	return first;
+	return ret;
 }
 
 static int free_clusters(struct ghostfs *gfs, struct cluster *c)
