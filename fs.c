@@ -555,8 +555,12 @@ int ghostfs_truncate(struct ghostfs *gfs, const char *path, off_t new_size)
 			next = c->hdr.next;
 		}
 
-		c->hdr.next = 0;
-		cluster_set_dirty(c, true);
+		if (nr) {
+			cluster_set_dirty(c, true);
+			c->hdr.next = 0;
+		} else {
+			it.entry->cluster = 0;
+		}
 
 		ret = cluster_get(gfs, next, &c);
 		if (ret < 0)
