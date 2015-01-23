@@ -13,7 +13,8 @@
 enum {
 	CLUSTER_SIZE = 4096,
 	CLUSTER_DIRS = 66,
-	FILENAME_SIZE = 56
+	FILENAME_SIZE = 56,
+	FILESIZE_MAX = 0x7FFFFFFF
 };
 
 // MD5(header+cluster0) | header | cluster0 .. clusterN
@@ -506,7 +507,7 @@ int ghostfs_truncate(struct ghostfs *gfs, const char *path, off_t new_size)
 	int old_nr, nr;
 	int ret;
 
-	if (new_size < 0)
+	if (new_size < 0 || new_size > FILESIZE_MAX)
 		return -EINVAL;
 
 	ret = dir_iter_lookup(gfs, &it, path, false);
