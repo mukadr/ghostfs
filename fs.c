@@ -506,8 +506,10 @@ int ghostfs_truncate(struct ghostfs *gfs, const char *path, off_t new_size)
 	int old_nr, nr;
 	int ret;
 
-	if (new_size < 0 || new_size > FILESIZE_MAX)
+	if (new_size < 0)
 		return -EINVAL;
+	if (new_size > FILESIZE_MAX)
+		return -EFBIG;
 
 	ret = dir_iter_lookup(gfs, &it, path, false);
 	if (ret < 0)
