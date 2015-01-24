@@ -100,6 +100,10 @@ struct dir_iter {
 	int entry_nr;
 };
 
+struct ghostfs_entry {
+	struct dir_iter it;
+};
+
 static int dir_iter_init(struct ghostfs *gfs, struct dir_iter *it, int cluster_nr)
 {
 	int ret;
@@ -574,6 +578,34 @@ int ghostfs_truncate(struct ghostfs *gfs, const char *path, off_t new_size)
 	dir_entry_set_size(it.entry, new_size, false);
 	cluster_set_dirty(it.cluster, true);
 
+	return 0;
+}
+
+int ghostfs_open(struct ghostfs *gfs, const char *filename, struct ghostfs_entry **pentry)
+{
+	struct dir_iter it;
+	int ret;
+
+	ret = dir_iter_lookup(gfs, &it, filename, false);
+	if (ret < 0)
+		return ret;
+
+	if (dir_entry_is_directory(it.entry))
+		return -EISDIR;
+
+	if (pentry) {
+		*pentry = malloc(sizeof(*pentry));
+		if (!*pentry)
+			return -ENOMEM;
+		(*pentry)->it = it;
+	}
+
+	return 0;
+}
+
+int ghostfs_release(struct ghostfs *gfs, struct ghostfs_entry *entry)
+{
+	free(entry);
 	return 0;
 }
 
