@@ -12,6 +12,7 @@
 
 enum {
 	CLUSTER_SIZE = 4096,
+	CLUSTER_DATA = 4092,
 	CLUSTER_DIRS = 66,
 	FILENAME_SIZE = 56,
 	FILESIZE_MAX = 0x7FFFFFFF
@@ -73,7 +74,7 @@ struct cluster_header {
 } __attribute__((packed));
 
 struct cluster {
-	unsigned char data[4092];
+	unsigned char data[CLUSTER_DATA];
 	struct cluster_header hdr;
 } __attribute__((packed));
 
@@ -506,7 +507,7 @@ static int last_cluster(struct ghostfs *gfs, int first, struct cluster **pcluste
 
 static int size_to_clusters(int size)
 {
-	return size / CLUSTER_SIZE + (size % CLUSTER_SIZE ? 1 : 0);
+	return size / CLUSTER_DATA + (size % CLUSTER_DATA ? 1 : 0);
 }
 
 static int ghostfs_do_truncate(struct ghostfs *gfs, struct dir_iter *it, off_t new_size)
@@ -649,12 +650,12 @@ int ghostfs_write(struct ghostfs *gfs, struct ghostfs_entry *gentry, const char 
 	}
 
 	// adjust offset to first cluster
-	offset %= CLUSTER_SIZE;
+	offset %= CLUSTER_DATA;
 
 	while (size) {
-		int w = (size < CLUSTER_SIZE) ? size : CLUSTER_SIZE;
-		if (offset + w > CLUSTER_SIZE)
-			w -= (offset + w) - CLUSTER_SIZE;
+		int w = (size < CLUSTER_DATA) ? size : CLUSTER_DATA;
+		if (offset + w > CLUSTER_DATA)
+			w -= (offset + w) - CLUSTER_DATA;
 
 		memcpy(c->data + offset, buf, w);
 		cluster_set_dirty(c, true);
