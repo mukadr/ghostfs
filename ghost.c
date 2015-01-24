@@ -76,6 +76,25 @@ int main(int argc, char *argv[])
 		if (ret < 0)
 			goto failed;
 		break;
+	case '1': {
+		struct ghostfs_entry *e;
+
+		if (argc != 5) {
+			printf("write test: missing filename and offset\n");
+			return 1;
+		}
+
+		ret = ghostfs_open(gfs, argv[3], &e);
+		if (ret < 0)
+			goto failed;
+
+		ret = ghostfs_write(gfs, e, "Hello World!", 12, atol(argv[4]));
+		if (ret < 0)
+			goto failed;
+
+		ghostfs_release(gfs, e);
+		break;
+	}
 	case '?':
 		ghostfs_debug(gfs);
 		break;
