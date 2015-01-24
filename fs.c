@@ -509,9 +509,8 @@ static int size_to_clusters(int size)
 	return size / CLUSTER_SIZE + (size % CLUSTER_SIZE ? 1 : 0);
 }
 
-int ghostfs_truncate(struct ghostfs *gfs, const char *path, off_t new_size)
+static int ghostfs_do_truncate(struct ghostfs *gfs, struct dir_iter *it, off_t new_size)
 {
-	struct dir_iter it;
 	int old_nr, nr;
 	int ret;
 
@@ -520,21 +519,17 @@ int ghostfs_truncate(struct ghostfs *gfs, const char *path, off_t new_size)
 	if (new_size > FILESIZE_MAX)
 		return -EFBIG;
 
-	ret = dir_iter_lookup(gfs, &it, path, false);
-	if (ret < 0)
-		return ret;
-
-	if (dir_entry_is_directory(it.entry))
+	if (dir_entry_is_directory(it->entry))
 		return -EISDIR;
 
-	old_nr = size_to_clusters(it.entry->size);
+	old_nr = size_to_clusters(it->entry->size);
 	nr = size_to_clusters(new_size);
 
 	if (nr > old_nr) { // increase cluster count
 		struct cluster *last = NULL;
 
-		if (it.entry->cluster) {
-			ret = last_cluster(gfs, it.entry->cluster, &last);
+		if (it->entry->cluster) {
+			ret = last_cluster(gfs, it->entry->cluster, &last);
 			if (ret < 0)
 				return ret;
 		}
@@ -547,12 +542,12 @@ int ghostfs_truncate(struct ghostfs *gfs, const char *path, off_t new_size)
 			last->hdr.next = ret;
 			cluster_set_dirty(last, true);
 		} else {
-			it.entry->cluster = ret;
+			it->entry->cluster = ret;
 		}
 	} else if (nr < old_nr) { // decrease cluster count
 		struct cluster *c;
 		int i;
-		int next = it.entry->cluster;
+		int next = it->entry->cluster;
 
 		for (i = 0; i < nr; i++) {
 			ret = cluster_get(gfs, next, &c);
@@ -565,7 +560,7 @@ int ghostfs_truncate(struct ghostfs *gfs, const char *path, off_t new_size)
 			cluster_set_dirty(c, true);
 			c->hdr.next = 0;
 		} else {
-			it.entry->cluster = 0;
+			it->entry->cluster = 0;
 		}
 
 		ret = cluster_get(gfs, next, &c);
@@ -575,10 +570,22 @@ int ghostfs_truncate(struct ghostfs *gfs, const char *path, off_t new_size)
 		free_clusters(gfs, c);
 	}
 
-	dir_entry_set_size(it.entry, new_size, false);
-	cluster_set_dirty(it.cluster, true);
+	dir_entry_set_size(it->entry, new_size, false);
+	cluster_set_dirty(it->cluster, true);
 
 	return 0;
+}
+
+int ghostfs_truncate(struct ghostfs *gfs, const char *path, off_t new_size)
+{
+	struct dir_iter it;
+	int ret;
+
+	ret = dir_iter_lookup(gfs, &it, path, false);
+	if (ret < 0)
+		return ret;
+
+	return ghostfs_do_truncate(gfs, &it, new_size);
 }
 
 int ghostfs_open(struct ghostfs *gfs, const char *filename, struct ghostfs_entry **pentry)
@@ -594,7 +601,7 @@ int ghostfs_open(struct ghostfs *gfs, const char *filename, struct ghostfs_entry
 		return -EISDIR;
 
 	if (pentry) {
-		*pentry = malloc(sizeof(*pentry));
+		*pentry = malloc(sizeof(**pentry));
 		if (!*pentry)
 			return -ENOMEM;
 		(*pentry)->it = it;
@@ -607,6 +614,70 @@ int ghostfs_release(struct ghostfs *gfs, struct ghostfs_entry *entry)
 {
 	free(entry);
 	return 0;
+}
+
+int ghostfs_write(struct ghostfs *gfs, struct ghostfs_entry *gentry, const char *buf, size_t size, off_t offset)
+{
+	struct dir_entry *entry = gentry->it.entry;
+	struct cluster *c;
+	int next, nr;
+	int ret;
+	int written = 0;
+
+	if (offset < 0)
+		return -EINVAL;
+
+	if (entry->size < offset + size) {
+		ret = ghostfs_do_truncate(gfs, &gentry->it, offset + size);
+		if (ret < 0)
+			return ret;
+	}
+
+	nr = size_to_clusters(entry->size);
+	next = entry->cluster;
+
+	while (nr && next) {
+		ret = cluster_get(gfs, next, &c);
+		if (ret < 0)
+			return ret;
+		next = c->hdr.next;
+		nr--;
+	}
+	if (nr) {
+		warnx("fs: cluster missing, bad filesystem");
+		return -EIO;
+	}
+
+	// adjust offset to first cluster
+	offset %= CLUSTER_SIZE;
+
+	while (size) {
+		int w = (size < CLUSTER_SIZE) ? size : CLUSTER_SIZE;
+		if (offset + w > CLUSTER_SIZE)
+			w -= (offset + w) - CLUSTER_SIZE;
+
+		memcpy(c->data + offset, buf, w);
+		cluster_set_dirty(c, true);
+
+		size -= w;
+		buf += w;
+		written += w;
+		offset = 0;
+
+		if (!next)
+			break;
+
+		ret = cluster_get(gfs, next, &c);
+		if (ret < 0)
+			return ret;
+		next = c->hdr.next;
+	}
+	if (size) {
+		warnx("fs: cluster missing, bad filesystem");
+		return -EIO;
+	}
+
+	return written;
 }
 
 static int cluster_get(struct ghostfs *gfs, int nr, struct cluster **pcluster)
