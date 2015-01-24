@@ -412,8 +412,7 @@ static int create_entry(struct ghostfs *gfs, const char *path, bool is_dir)
 		}
 	}
 
-	strncpy(it.entry->filename, name, FILENAME_SIZE);
-	it.entry->filename[FILENAME_SIZE - 1] = '\0';
+	strcpy(it.entry->filename, name);
 	dir_entry_set_size(it.entry, 0, is_dir);
 	it.entry->cluster = cluster_nr;
 	cluster_set_dirty(it.cluster, true);
