@@ -95,6 +95,29 @@ int main(int argc, char *argv[])
 		ghostfs_release(gfs, e);
 		break;
 	}
+	case '2': {
+		struct ghostfs_entry *e;
+		char buf[12];
+
+		if (argc != 5) {
+			printf("read test: missing filename and offset\n");
+			return 1;
+		}
+
+		ret = ghostfs_open(gfs, argv[3], &e);
+		if (ret < 0)
+			goto failed;
+
+		ret = ghostfs_read(gfs, e, buf, sizeof(buf), atol(argv[4]));
+		if (ret < 0)
+			goto failed;
+
+		fwrite(buf, sizeof(buf), 1, stdout);
+		printf("\n");
+
+		ghostfs_release(gfs, e);
+		break;
+	}
 	case '?':
 		ghostfs_debug(gfs);
 		break;

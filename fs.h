@@ -17,6 +17,7 @@ int ghostfs_truncate(struct ghostfs *gfs, const char *path, off_t new_size);
 int ghostfs_open(struct ghostfs *gfs, const char *filename, struct ghostfs_entry **pentry);
 int ghostfs_release(struct ghostfs *gfs, struct ghostfs_entry *entry);
 int ghostfs_write(struct ghostfs *gfs, struct ghostfs_entry *gentry, const char *buf, size_t size, off_t offset);
+int ghostfs_read(struct ghostfs *gfs, struct ghostfs_entry *gentry, char *buf, size_t size, off_t offset);
 
 int ghostfs_format(const char *filename);
 int ghostfs_status(const struct ghostfs *gfs);
