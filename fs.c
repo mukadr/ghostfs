@@ -500,6 +500,11 @@ static int last_cluster(struct ghostfs *gfs, int first, struct cluster **pcluste
 	return first;
 }
 
+static int size_to_clusters(int size)
+{
+	return size / CLUSTER_SIZE + (size % CLUSTER_SIZE ? 1 : 0);
+}
+
 int ghostfs_truncate(struct ghostfs *gfs, const char *path, off_t new_size)
 {
 	struct dir_iter it;
@@ -518,13 +523,8 @@ int ghostfs_truncate(struct ghostfs *gfs, const char *path, off_t new_size)
 	if (dir_entry_is_directory(it.entry))
 		return -EISDIR;
 
-	old_nr = it.entry->size / CLUSTER_SIZE;
-	if (it.entry->size % CLUSTER_SIZE)
-		old_nr++;
-
-	nr = new_size / CLUSTER_SIZE;
-	if (new_size % CLUSTER_SIZE)
-		nr++;
+	old_nr = size_to_clusters(it.entry->size);
+	nr = size_to_clusters(new_size);
 
 	if (nr > old_nr) { // increase cluster count
 		struct cluster *last = NULL;
