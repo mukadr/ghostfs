@@ -510,7 +510,7 @@ static int size_to_clusters(int size)
 	return size / CLUSTER_DATA + (size % CLUSTER_DATA ? 1 : 0);
 }
 
-static int ghostfs_do_truncate(struct ghostfs *gfs, struct dir_iter *it, off_t new_size)
+static int do_truncate(struct ghostfs *gfs, struct dir_iter *it, off_t new_size)
 {
 	int old_nr, nr;
 	int ret;
@@ -586,7 +586,7 @@ int ghostfs_truncate(struct ghostfs *gfs, const char *path, off_t new_size)
 	if (ret < 0)
 		return ret;
 
-	return ghostfs_do_truncate(gfs, &it, new_size);
+	return do_truncate(gfs, &it, new_size);
 }
 
 int ghostfs_open(struct ghostfs *gfs, const char *filename, struct ghostfs_entry **pentry)
@@ -629,7 +629,7 @@ int ghostfs_write(struct ghostfs *gfs, struct ghostfs_entry *gentry, const char 
 		return -EINVAL;
 
 	if (entry->size < offset + size) {
-		ret = ghostfs_do_truncate(gfs, &gentry->it, offset + size);
+		ret = do_truncate(gfs, &gentry->it, offset + size);
 		if (ret < 0)
 			return ret;
 	}
