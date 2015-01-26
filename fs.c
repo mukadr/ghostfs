@@ -758,8 +758,8 @@ int ghostfs_opendir(struct ghostfs *gfs, const char *path, struct ghostfs_entry 
 		return -ENOMEM;
 	(*pentry)->it = it;
 
-	if (!dir_entry_used(it.entry)) {
-		ret = dir_iter_next_used(&it);
+	if (!dir_entry_used((*pentry)->it.entry)) {
+		ret = dir_iter_next_used(&(*pentry)->it);
 		if (ret < 0) {
 			if (ret == -ENOENT)
 				return 0;
