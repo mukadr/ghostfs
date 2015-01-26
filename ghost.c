@@ -92,7 +92,7 @@ int main(int argc, char *argv[])
 		if (ret < 0)
 			goto failed;
 
-		ghostfs_release(gfs, e);
+		ghostfs_release(e);
 		break;
 	}
 	case '2': {
@@ -115,7 +115,7 @@ int main(int argc, char *argv[])
 		fwrite(buf, sizeof(buf), 1, stdout);
 		printf("\n");
 
-		ghostfs_release(gfs, e);
+		ghostfs_release(e);
 		break;
 	}
 	case '?':

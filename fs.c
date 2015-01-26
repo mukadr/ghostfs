@@ -611,10 +611,9 @@ int ghostfs_open(struct ghostfs *gfs, const char *filename, struct ghostfs_entry
 	return 0;
 }
 
-int ghostfs_release(struct ghostfs *gfs, struct ghostfs_entry *entry)
+void ghostfs_release(struct ghostfs_entry *entry)
 {
 	free(entry);
-	return 0;
 }
 
 int ghostfs_write(struct ghostfs *gfs, struct ghostfs_entry *gentry, const char *buf, size_t size, off_t offset)
