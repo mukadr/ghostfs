@@ -59,7 +59,16 @@ static int gfs_fuse_read(const char *path, char *buf, size_t size, off_t offset,
 
 static int gfs_fuse_opendir(const char *path, struct fuse_file_info *info)
 {
-	return -ENOSYS;
+	struct ghostfs *gfs = get_gfs();
+	struct ghostfs_entry *dp;
+	int ret;
+
+	ret = ghostfs_opendir(gfs, path, &dp);
+	if (ret < 0)
+		return ret;
+
+	info->fh = (intptr_t)dp;
+	return 0;
 }
 
 static int gfs_fuse_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *info)
