@@ -83,7 +83,7 @@ static int gfs_fuse_releasedir(const char *path, struct fuse_file_info *info)
 
 static int gfs_fuse_getattr(const char *path, struct stat *stat)
 {
-	return -ENOSYS;
+	return ghostfs_getattr(get_gfs(), path, stat);
 }
 
 static int gfs_fuse_rename(const char *path, const char *newpath)
