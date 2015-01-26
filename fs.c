@@ -69,6 +69,7 @@ struct ghostfs {
 	uid_t uid;
 	gid_t gid;
 	time_t mount_time;
+	uint16_t free_clusters;
 };
 
 struct cluster_header {
@@ -829,6 +830,22 @@ int ghostfs_getattr(struct ghostfs *gfs, const char *filename, struct stat *stat
 	return 0;
 }
 
+int ghostfs_statvfs(struct ghostfs *gfs, struct statvfs *stat)
+{
+	memset(stat, 0, sizeof(*stat));
+
+	stat->f_bsize = CLUSTER_SIZE;
+	stat->f_frsize = CLUSTER_SIZE;
+	stat->f_blocks = gfs->hdr.cluster_count;
+	stat->f_bfree = gfs->free_clusters;
+	stat->f_bavail = stat->f_bfree;
+	stat->f_files = 0; // FIXME: keep track of how many files we have
+	stat->f_ffree = 0; // FIXME: ?
+	stat->f_namemax = FILESIZE_MAX;
+
+	return 0;
+}
+
 static int cluster_get(struct ghostfs *gfs, int nr, struct cluster **pcluster)
 {
 	int ret;
@@ -1022,7 +1039,7 @@ void ghostfs_debug(struct ghostfs *gfs)
 int ghostfs_mount(struct ghostfs **pgfs, const char *filename)
 {
 	struct ghostfs *gfs;
-	int ret;
+	int i, ret;
 
 	gfs = calloc(1, sizeof(*gfs));
 	if (!gfs)
@@ -1053,6 +1070,20 @@ int ghostfs_mount(struct ghostfs **pgfs, const char *filename)
 	gfs->uid = getuid();
 	gfs->gid = getgid();
 	time(&gfs->mount_time);
+
+	// check free clusters
+	for (i = 1; i < gfs->hdr.cluster_count; i++) {
+		struct cluster *c;
+
+		ret = cluster_get(gfs, i, &c);
+		if (ret < 0) {
+			ghostfs_free(gfs);
+			return ret;
+		}
+
+		if (!c->hdr.used)
+			gfs->free_clusters++;
+	}
 
 	return 0;
 }
