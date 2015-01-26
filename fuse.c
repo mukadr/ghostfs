@@ -1,5 +1,6 @@
 #define FUSE_USE_VERSION 26
 #include <fuse.h>
+
 #include <stdio.h>
 #include <string.h>
 
@@ -10,6 +11,11 @@
 #include "fs.h"
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
+
+static struct ghostfs *get_gfs(void)
+{
+	return fuse_get_context()->private_data;
+}
 
 static int gfs_fuse_unlink(const char *path)
 {
@@ -83,11 +89,17 @@ static int gfs_fuse_statfs(const char *path, struct statvfs *stat)
 
 void *init(struct fuse_conn_info *conn)
 {
-	return NULL;
+	return get_gfs();
 }
 
 void destroy(void *user)
 {
+	struct ghostfs *gfs = user;
+	int ret;
+
+	ret = ghostfs_umount(gfs);
+	if (ret < 0)
+		fprintf(stderr, "failed to write filesystem: %s\n", strerror(-ret));
 }
 
 struct fuse_operations operations = {
@@ -113,9 +125,17 @@ struct fuse_operations operations = {
 int main(int argc, char *argv[])
 {
 	char *fuse_argv[3];
+	struct ghostfs *gfs;
+	int ret;
 
 	if (argc != 3) {
 		fprintf(stderr, "usage: ghost-fuse file mount_point\n");
+		return 1;
+	}
+
+	ret = ghostfs_mount(&gfs, argv[1]);
+	if (ret < 0) {
+		fprintf(stderr, "failed to mount: %s\n", strerror(-ret));
 		return 1;
 	}
 
@@ -124,5 +144,5 @@ int main(int argc, char *argv[])
 	// disable multithreading
 	fuse_argv[2] = "-s";
 
-	return fuse_main(ARRAY_SIZE(fuse_argv), fuse_argv, &operations, NULL);
+	return fuse_main(ARRAY_SIZE(fuse_argv), fuse_argv, &operations, gfs);
 }
