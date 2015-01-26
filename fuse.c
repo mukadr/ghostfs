@@ -1,6 +1,7 @@
 #define FUSE_USE_VERSION 26
 #include <fuse.h>
 #include <stdio.h>
+#include <string.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -109,5 +110,17 @@ struct fuse_operations operations = {
 
 int main(int argc, char *argv[])
 {
-	return fuse_main(argc, argv, &operations, NULL);
+	char *fuse_argv[3];
+
+	if (argc != 3) {
+		fprintf(stderr, "usage: ghost-fuse file mount_point\n");
+		return 1;
+	}
+
+	fuse_argv[0] = argv[0];
+	fuse_argv[1] = argv[2];
+	// disable multithreading
+	fuse_argv[2] = "-s";
+
+	return fuse_main(argc, fuse_argv, &operations, NULL);
 }
