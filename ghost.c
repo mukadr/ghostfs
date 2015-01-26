@@ -118,6 +118,27 @@ int main(int argc, char *argv[])
 		ghostfs_release(e);
 		break;
 	}
+	case 'l': {
+		struct ghostfs_entry *e;
+
+		if (argc != 4) {
+			printf("ls: missing filename\n");
+			return 1;
+		}
+
+		ret = ghostfs_opendir(gfs, argv[3], &e);
+
+		while (ret == 0) {
+			printf("'%s'\n", ghostfs_entry_name(e));
+			ret = ghostfs_next_entry(gfs, e);
+		}
+
+		if (ret != -ENOENT)
+			goto failed;
+
+		ghostfs_closedir(e);
+		break;
+	}
 	case '?':
 		ghostfs_debug(gfs);
 		break;

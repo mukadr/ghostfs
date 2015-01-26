@@ -1,6 +1,7 @@
 #ifndef GHOST_FS_H
 #define GHOST_FS_H
 
+#include <errno.h>
 #include <sys/types.h>
 
 struct ghostfs;
@@ -18,6 +19,10 @@ int ghostfs_open(struct ghostfs *gfs, const char *filename, struct ghostfs_entry
 void ghostfs_release(struct ghostfs_entry *entry);
 int ghostfs_write(struct ghostfs *gfs, struct ghostfs_entry *gentry, const char *buf, size_t size, off_t offset);
 int ghostfs_read(struct ghostfs *gfs, struct ghostfs_entry *gentry, char *buf, size_t size, off_t offset);
+int ghostfs_opendir(struct ghostfs *gfs, const char *path, struct ghostfs_entry **pentry);
+int ghostfs_next_entry(struct ghostfs *gfs, struct ghostfs_entry *entry);
+void ghostfs_closedir(struct ghostfs_entry *entry);
+const char *ghostfs_entry_name(const struct ghostfs_entry *entry);
 
 int ghostfs_format(const char *filename);
 int ghostfs_status(const struct ghostfs *gfs);

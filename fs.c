@@ -737,6 +737,49 @@ int ghostfs_read(struct ghostfs *gfs, struct ghostfs_entry *gentry, char *buf, s
 	return read;
 }
 
+int ghostfs_opendir(struct ghostfs *gfs, const char *path, struct ghostfs_entry **pentry)
+{
+	struct dir_iter it;
+	int ret;
+
+	ret = dir_iter_lookup(gfs, &it, path, false);
+	if (ret < 0)
+		return ret;
+
+	if (!dir_entry_is_directory(it.entry))
+		return -ENOTDIR;
+
+	ret = dir_iter_init(gfs, &it, it.entry->cluster);
+	if (ret < 0)
+		return ret;
+
+	*pentry = malloc(sizeof(**pentry));
+	if (!*pentry)
+		return -ENOMEM;
+	(*pentry)->it = it;
+
+	if (!dir_entry_used(it.entry)) {
+		ret = dir_iter_next_used(&it);
+		if (ret < 0) {
+			if (ret != -ENOENT)
+				free(*pentry);
+			return ret;
+		}
+	}
+
+	return 0;
+}
+
+int ghostfs_next_entry(struct ghostfs *gfs, struct ghostfs_entry *entry)
+{
+	return dir_iter_next_used(&entry->it);
+}
+
+void ghostfs_closedir(struct ghostfs_entry *entry)
+{
+	free(entry);
+}
+
 static int cluster_get(struct ghostfs *gfs, int nr, struct cluster **pcluster)
 {
 	int ret;
@@ -1026,4 +1069,9 @@ int ghostfs_umount(struct ghostfs *gfs)
 int ghostfs_cluster_count(const struct ghostfs *gfs)
 {
 	return gfs->hdr.cluster_count;
+}
+
+const char *ghostfs_entry_name(const struct ghostfs_entry *entry)
+{
+	return entry->it.entry->filename;
 }
