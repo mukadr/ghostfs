@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "fs.h"
 #include "md5.h"
@@ -65,6 +66,9 @@ struct ghostfs {
 	struct steg *steg;
 	struct cluster **clusters;
 	struct dir_entry root_entry;
+	uid_t uid;
+	gid_t gid;
+	time_t mount_time;
 };
 
 struct cluster_header {
@@ -787,6 +791,44 @@ void ghostfs_closedir(struct ghostfs_entry *entry)
 	free(entry);
 }
 
+int ghostfs_getattr(struct ghostfs *gfs, const char *filename, struct stat *stat)
+{
+	struct dir_iter it;
+	int ret;
+
+	ret = dir_iter_lookup(gfs, &it, filename, false);
+	if (ret < 0)
+		return ret;
+
+	memset(stat, 0, sizeof(*stat));
+
+	if (dir_entry_is_directory(it.entry)) {
+		stat->st_mode |= S_IFDIR;
+		stat->st_size = CLUSTER_SIZE;
+	} else {
+		stat->st_mode |= S_IFREG;
+		stat->st_size = it.entry->size;
+	}
+
+	// user that mounted filesystem owns all files
+	stat->st_uid = gfs->uid;
+	stat->st_gid = gfs->gid;
+	// only read and write allowed
+	stat->st_mode |= S_IRUSR | S_IWUSR;
+
+	stat->st_blocks = stat->st_size / 512 + (stat->st_size % 512 ? 1 : 0);
+
+	// all time fields use the mount time
+	memcpy(&stat->st_atime, &gfs->mount_time, sizeof(time_t));
+	memcpy(&stat->st_mtime, &gfs->mount_time, sizeof(time_t));
+	memcpy(&stat->st_ctime, &gfs->mount_time, sizeof(time_t));
+
+	// only one hardlink
+	stat->st_nlink = 1;
+
+	return 0;
+}
+
 static int cluster_get(struct ghostfs *gfs, int nr, struct cluster **pcluster)
 {
 	int ret;
@@ -1007,6 +1049,10 @@ int ghostfs_mount(struct ghostfs **pgfs, const char *filename)
 		ghostfs_free(gfs);
 		return -ENOMEM;
 	}
+
+	gfs->uid = getuid();
+	gfs->gid = getgid();
+	time(&gfs->mount_time);
 
 	return 0;
 }
