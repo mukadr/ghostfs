@@ -761,18 +761,25 @@ int ghostfs_opendir(struct ghostfs *gfs, const char *path, struct ghostfs_entry 
 	if (!dir_entry_used(it.entry)) {
 		ret = dir_iter_next_used(&it);
 		if (ret < 0) {
-			if (ret != -ENOENT)
-				free(*pentry);
+			if (ret == -ENOENT)
+				return 0;
+			free(*pentry);
 			return ret;
 		}
 	}
 
-	return 0;
+	return 1;
 }
 
 int ghostfs_next_entry(struct ghostfs *gfs, struct ghostfs_entry *entry)
 {
-	return dir_iter_next_used(&entry->it);
+	int ret = dir_iter_next_used(&entry->it);
+	if (ret < 0) {
+		if (ret == -ENOENT)
+			return 0;
+		return ret;
+	}
+	return 1;
 }
 
 void ghostfs_closedir(struct ghostfs_entry *entry)
