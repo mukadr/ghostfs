@@ -93,7 +93,7 @@ static int gfs_fuse_rename(const char *path, const char *newpath)
 
 static int gfs_fuse_statfs(const char *path, struct statvfs *stat)
 {
-	return -ENOSYS;
+	return ghostfs_statvfs(get_gfs(), stat);
 }
 
 void *init(struct fuse_conn_info *conn)
