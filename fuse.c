@@ -9,6 +9,8 @@
 
 #include "fs.h"
 
+#define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
+
 static int gfs_fuse_unlink(const char *path)
 {
 	return -ENOSYS;
@@ -122,5 +124,5 @@ int main(int argc, char *argv[])
 	// disable multithreading
 	fuse_argv[2] = "-s";
 
-	return fuse_main(argc, fuse_argv, &operations, NULL);
+	return fuse_main(ARRAY_SIZE(fuse_argv), fuse_argv, &operations, NULL);
 }
