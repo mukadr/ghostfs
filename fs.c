@@ -723,8 +723,6 @@ int ghostfs_read(struct ghostfs *gfs, struct ghostfs_entry *gentry, char *buf, s
 
 	if (offset < 0)
 		return -EINVAL;
-	if (entry->size < offset + size)
-		return -EINVAL;
 
 	nr = size_to_clusters(entry->size);
 	next = entry->cluster;
@@ -743,6 +741,10 @@ int ghostfs_read(struct ghostfs *gfs, struct ghostfs_entry *gentry, char *buf, s
 
 	// adjust offset to first cluster
 	offset %= CLUSTER_DATA;
+
+	// adjust amount to read
+	if (offset + size > entry->size)
+		size = entry->size - offset;
 
 	while (size) {
 		int r = (size < CLUSTER_DATA) ? size : CLUSTER_DATA;
