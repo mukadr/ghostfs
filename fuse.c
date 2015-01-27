@@ -1,6 +1,7 @@
 #define FUSE_USE_VERSION 26
 #include <fuse.h>
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -9,8 +10,6 @@
 #include <unistd.h>
 
 #include "fs.h"
-
-#define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 
 static struct ghostfs *get_gfs(void)
 {
@@ -177,14 +176,17 @@ struct fuse_operations operations = {
 
 int main(int argc, char *argv[])
 {
-	char *fuse_argv[3];
+	char *fuse_argv[4];
 	struct ghostfs *gfs;
 	int ret;
+	bool debug;
 
-	if (argc != 3) {
-		fprintf(stderr, "usage: ghost-fuse file mount_point\n");
+	if (argc < 3) {
+		fprintf(stderr, "usage: ghost-fuse file mount_point [d]\n");
 		return 1;
 	}
+
+	debug = (argc > 3) && !strcmp(argv[3], "d");
 
 	ret = ghostfs_mount(&gfs, argv[1]);
 	if (ret < 0) {
@@ -196,6 +198,8 @@ int main(int argc, char *argv[])
 	fuse_argv[1] = argv[2];
 	// disable multithreading
 	fuse_argv[2] = "-s";
+	if (debug)
+		fuse_argv[3] = "-d";
 
-	return fuse_main(ARRAY_SIZE(fuse_argv), fuse_argv, &operations, gfs);
+	return fuse_main(debug ? 4 : 3, fuse_argv, &operations, gfs);
 }
