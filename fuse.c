@@ -37,6 +37,26 @@ static int gfs_fuse_truncate(const char *path, off_t newsize)
 	return ghostfs_truncate(get_gfs(), path, newsize);
 }
 
+static int gfs_fuse_create(const char *path, mode_t mode, struct fuse_file_info *info)
+{
+	struct ghostfs *gfs = get_gfs();
+	struct ghostfs_entry *entry;
+	int ret;
+
+	ret = ghostfs_create(gfs, path);
+	if (ret < 0)
+		return ret;
+
+	ret = ghostfs_open(gfs, path, &entry);
+	if (ret < 0) {
+		ghostfs_unlink(gfs, path);
+		return ret;
+	}
+
+	info->fh = (intptr_t)entry;
+	return 0;
+}
+
 static int gfs_fuse_open(const char *path, struct fuse_file_info *info)
 {
 	struct ghostfs *gfs = get_gfs();
@@ -142,6 +162,7 @@ struct fuse_operations operations = {
 	.mkdir = gfs_fuse_mkdir,
 	.rmdir = gfs_fuse_rmdir,
 	.truncate = gfs_fuse_truncate,
+	.create = gfs_fuse_create,
 	.open = gfs_fuse_open,
 	.release = gfs_fuse_release,
 	.write = gfs_fuse_write,
