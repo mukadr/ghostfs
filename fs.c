@@ -654,7 +654,7 @@ int ghostfs_write(struct ghostfs *gfs, struct ghostfs_entry *gentry, const char 
 {
 	struct dir_entry *entry = gentry->it.entry;
 	struct cluster *c;
-	int next, nr;
+	int next;
 	int ret;
 	int written = 0;
 
@@ -667,23 +667,23 @@ int ghostfs_write(struct ghostfs *gfs, struct ghostfs_entry *gentry, const char 
 			return ret;
 	}
 
-	nr = size_to_clusters(entry->size);
 	next = entry->cluster;
 
-	while (nr && next) {
+	while (next) {
 		ret = cluster_get(gfs, next, &c);
 		if (ret < 0)
 			return ret;
+
+		if (offset < CLUSTER_DATA)
+			break;
+
+		offset -= CLUSTER_DATA;
 		next = c->hdr.next;
-		nr--;
 	}
-	if (nr) {
+	if (offset >= CLUSTER_DATA) {
 		warnx("fs: cluster missing, bad filesystem");
 		return -EIO;
 	}
-
-	// adjust offset to first cluster
-	offset %= CLUSTER_DATA;
 
 	while (size) {
 		int w = (size < CLUSTER_DATA) ? size : CLUSTER_DATA;
@@ -717,34 +717,34 @@ int ghostfs_read(struct ghostfs *gfs, struct ghostfs_entry *gentry, char *buf, s
 {
 	struct dir_entry *entry = gentry->it.entry;
 	struct cluster *c;
-	int next, nr;
+	int next;
 	int ret;
 	int read = 0;
 
 	if (offset < 0)
 		return -EINVAL;
 
-	nr = size_to_clusters(entry->size);
-	next = entry->cluster;
-
-	while (nr && next) {
-		ret = cluster_get(gfs, next, &c);
-		if (ret < 0)
-			return ret;
-		next = c->hdr.next;
-		nr--;
-	}
-	if (nr) {
-		warnx("fs: cluster missing, bad filesystem");
-		return -EIO;
-	}
-
-	// adjust offset to first cluster
-	offset %= CLUSTER_DATA;
-
 	// adjust amount to read
 	if (offset + size > entry->size)
 		size = entry->size - offset;
+
+	next = entry->cluster;
+
+	while (next) {
+		ret = cluster_get(gfs, next, &c);
+		if (ret < 0)
+			return ret;
+
+		if (offset < CLUSTER_DATA)
+			break;
+
+		offset -= CLUSTER_DATA;
+		next = c->hdr.next;
+	}
+	if (offset >= CLUSTER_DATA) {
+		warnx("fs: cluster missing, bad filesystem");
+		return -EIO;
+	}
 
 	while (size) {
 		int r = (size < CLUSTER_DATA) ? size : CLUSTER_DATA;
