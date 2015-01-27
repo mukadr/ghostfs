@@ -73,7 +73,19 @@ static int gfs_fuse_opendir(const char *path, struct fuse_file_info *info)
 
 static int gfs_fuse_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *info)
 {
-	return -ENOSYS;
+	struct ghostfs *gfs = get_gfs();
+	struct ghostfs_entry *dp = (struct ghostfs_entry *)info->fh;
+	int ret;
+
+	while ((ret = ghostfs_next_entry(gfs, dp)) == 0) {
+		if (filler(buf, ghostfs_entry_name(dp), NULL, 0) != 0)
+			return -ENOMEM;
+	}
+
+	if (ret != -ENOENT)
+		return ret;
+
+	return 0;
 }
 
 static int gfs_fuse_releasedir(const char *path, struct fuse_file_info *info)
