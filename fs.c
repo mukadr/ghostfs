@@ -306,6 +306,7 @@ static int alloc_clusters(struct ghostfs *gfs, int count, struct cluster **pfirs
 
 				c->hdr.used = 1;
 				cluster_set_dirty(c, true);
+				gfs->free_clusters--;
 
 				if (!first) {
 					first = pos;
@@ -336,6 +337,7 @@ undo:
 
 		c->hdr.used = 0;
 		cluster_set_dirty(c, true);
+		gfs->free_clusters++;
 
 		pos = c->hdr.next;
 		alloc--;
@@ -351,6 +353,7 @@ static int free_clusters(struct ghostfs *gfs, struct cluster *c)
 	for (;;) {
 		c->hdr.used = 0;
 		cluster_set_dirty(c, true);
+		gfs->free_clusters++;
 
 		if (!c->hdr.next)
 			break;
