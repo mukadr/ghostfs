@@ -366,7 +366,8 @@ static int free_clusters(struct ghostfs *gfs, struct cluster *c)
 	return 0;
 }
 
-static int create_entry(struct ghostfs *gfs, const char *path, bool is_dir)
+static int create_entry(struct ghostfs *gfs, const char *path, bool is_dir,
+		struct dir_entry **entry)
 {
 	struct dir_iter it;
 	struct cluster *prev = NULL, *next = NULL;
@@ -427,17 +428,20 @@ static int create_entry(struct ghostfs *gfs, const char *path, bool is_dir)
 	it.entry->cluster = cluster_nr;
 	cluster_set_dirty(it.cluster, true);
 
+	if (entry)
+		*entry = it.entry;
+
 	return 0;
 }
 
 int ghostfs_create(struct ghostfs *gfs, const char *path)
 {
-	return create_entry(gfs, path, false);
+	return create_entry(gfs, path, false, NULL);
 }
 
 int ghostfs_mkdir(struct ghostfs *gfs, const char *path)
 {
-	return create_entry(gfs, path, true);
+	return create_entry(gfs, path, true, NULL);
 }
 
 static int remove_entry(struct ghostfs *gfs, const char *path, bool is_dir)
@@ -592,6 +596,31 @@ int ghostfs_truncate(struct ghostfs *gfs, const char *path, off_t new_size)
 		return ret;
 
 	return do_truncate(gfs, &it, new_size);
+}
+
+int ghostfs_rename(struct ghostfs *gfs, const char *path, const char *newpath)
+{
+	struct dir_iter it;
+	struct dir_entry *entry;
+	int ret;
+
+	ret = dir_iter_lookup(gfs, &it, path, false);
+	if (ret < 0)
+		return ret;
+
+	ret = create_entry(gfs, newpath, false, &entry);
+	if (ret < 0)
+		return ret;
+
+	// remove old entry
+	it.entry->filename[0] = '\0';
+	cluster_set_dirty(it.cluster, true);
+
+	// fix new entry
+	entry->size = it.entry->size;
+	entry->cluster = it.entry->cluster;
+
+	return 0;
 }
 
 int ghostfs_open(struct ghostfs *gfs, const char *filename, struct ghostfs_entry **pentry)

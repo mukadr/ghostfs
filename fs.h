@@ -19,6 +19,7 @@ int ghostfs_unlink(struct ghostfs *gfs, const char *path);
 int ghostfs_mkdir(struct ghostfs *gfs, const char *path);
 int ghostfs_rmdir(struct ghostfs *gfs, const char *path);
 int ghostfs_truncate(struct ghostfs *gfs, const char *path, off_t new_size);
+int ghostfs_rename(struct ghostfs *gfs, const char *path, const char *newpath);
 int ghostfs_open(struct ghostfs *gfs, const char *filename, struct ghostfs_entry **pentry);
 void ghostfs_release(struct ghostfs_entry *entry);
 int ghostfs_write(struct ghostfs *gfs, struct ghostfs_entry *gentry, const char *buf, size_t size, off_t offset);

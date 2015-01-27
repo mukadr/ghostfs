@@ -142,6 +142,17 @@ int main(int argc, char *argv[])
 	case '?':
 		ghostfs_debug(gfs);
 		break;
+	case 'm':
+		if (argc != 5) {
+			printf("mv: missing path newpath\n");
+			return 1;
+		}
+
+		ret = ghostfs_rename(gfs, argv[3], argv[4]);
+		if (ret < 0)
+			goto failed;
+
+		break;
 	}
 
 	ret = ghostfs_umount(gfs);
