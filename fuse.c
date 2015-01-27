@@ -78,7 +78,8 @@ static int gfs_fuse_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 
 static int gfs_fuse_releasedir(const char *path, struct fuse_file_info *info)
 {
-	return -ENOSYS;
+	ghostfs_closedir((struct ghostfs_entry *)info->fh);
+	return 0;
 }
 
 static int gfs_fuse_getattr(const char *path, struct stat *stat)
