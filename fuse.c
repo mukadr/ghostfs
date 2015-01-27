@@ -19,42 +19,52 @@ static struct ghostfs *get_gfs(void)
 
 static int gfs_fuse_unlink(const char *path)
 {
-	return -ENOSYS;
+	return ghostfs_unlink(get_gfs(), path);
 }
 
 static int gfs_fuse_mkdir(const char *path, mode_t mode)
 {
-	return -ENOSYS;
+	return ghostfs_mkdir(get_gfs(), path);
 }
 
 static int gfs_fuse_rmdir(const char *path)
 {
-	return -ENOSYS;
+	return ghostfs_rmdir(get_gfs(), path);
 }
 
 static int gfs_fuse_truncate(const char *path, off_t newsize)
 {
-	return -ENOSYS;
+	return ghostfs_truncate(get_gfs(), path, newsize);
 }
 
 static int gfs_fuse_open(const char *path, struct fuse_file_info *info)
 {
-	return -ENOSYS;
+	struct ghostfs *gfs = get_gfs();
+	struct ghostfs_entry *entry;
+	int ret;
+
+	ret = ghostfs_open(gfs, path, &entry);
+	if (ret < 0)
+		return ret;
+
+	info->fh = (intptr_t)entry;
+	return 0;
 }
 
 static int gfs_fuse_release(const char *path, struct fuse_file_info *info)
 {
-	return -ENOSYS;
+	ghostfs_release((struct ghostfs_entry *)info->fh);
+	return 0;
 }
 
 static int gfs_fuse_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *info)
 {
-	return -ENOSYS;
+	return ghostfs_write(get_gfs(), (struct ghostfs_entry *)info->fh, buf, size, offset);
 }
 
 static int gfs_fuse_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *info)
 {
-	return -ENOSYS;
+	return ghostfs_read(get_gfs(), (struct ghostfs_entry *)info->fh, buf, size, offset);
 }
 
 static int gfs_fuse_opendir(const char *path, struct fuse_file_info *info)
@@ -101,7 +111,7 @@ static int gfs_fuse_getattr(const char *path, struct stat *stat)
 
 static int gfs_fuse_rename(const char *path, const char *newpath)
 {
-	return -ENOSYS;
+	return ghostfs_rename(get_gfs(), path, newpath);
 }
 
 static int gfs_fuse_statfs(const char *path, struct statvfs *stat)
