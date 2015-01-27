@@ -127,13 +127,13 @@ int main(int argc, char *argv[])
 		}
 
 		ret = ghostfs_opendir(gfs, argv[3], &e);
-
-		while (ret == 1) {
-			printf("'%s'\n", ghostfs_entry_name(e));
-			ret = ghostfs_next_entry(gfs, e);
-		}
-
 		if (ret < 0)
+			goto failed;
+
+		while ((ret = ghostfs_next_entry(gfs, e)) == 0)
+			printf("'%s'\n", ghostfs_entry_name(e));
+
+		if (ret != -ENOENT)
 			goto failed;
 
 		ghostfs_closedir(e);

@@ -754,37 +754,32 @@ int ghostfs_opendir(struct ghostfs *gfs, const char *path, struct ghostfs_entry 
 	if (!dir_entry_is_directory(it.entry))
 		return -ENOTDIR;
 
-	ret = dir_iter_init(gfs, &it, it.entry->cluster);
-	if (ret < 0)
-		return ret;
-
-	*pentry = malloc(sizeof(**pentry));
+	*pentry = calloc(1, sizeof(**pentry));
 	if (!*pentry)
 		return -ENOMEM;
-	(*pentry)->it = it;
+	(*pentry)->it.entry = it.entry;
 
-	if (!dir_entry_used((*pentry)->it.entry)) {
-		ret = dir_iter_next_used(&(*pentry)->it);
-		if (ret < 0) {
-			if (ret == -ENOENT)
-				return 0;
-			free(*pentry);
-			return ret;
-		}
-	}
-
-	return 1;
+	return 0;
 }
 
 int ghostfs_next_entry(struct ghostfs *gfs, struct ghostfs_entry *entry)
 {
-	int ret = dir_iter_next_used(&entry->it);
-	if (ret < 0) {
-		if (ret == -ENOENT)
+	int ret;
+
+	if (!entry->it.gfs) {
+		ret = dir_iter_init(gfs, &entry->it, entry->it.entry->cluster);
+		if (ret < 0)
+			return ret;
+
+		if (dir_entry_used(entry->it.entry))
 			return 0;
-		return ret;
 	}
-	return 1;
+
+	ret = dir_iter_next_used(&entry->it);
+	if (ret < 0)
+		return ret;
+
+	return 0;
 }
 
 void ghostfs_closedir(struct ghostfs_entry *entry)
