@@ -20,7 +20,6 @@ enum {
 };
 
 // MD5(header+cluster0) | header | cluster0 .. clusterN
-
 struct ghostfs_header {
 	uint16_t cluster_count;
 } __attribute__((packed));
@@ -674,9 +673,7 @@ int ghostfs_write(struct ghostfs *gfs, struct ghostfs_entry *gentry, const char 
 			return ret;
 	}
 
-	next = entry->cluster;
-
-	while (next) {
+	for (next = entry->cluster; next; next = c->hdr.next) {
 		ret = cluster_get(gfs, next, &c);
 		if (ret < 0)
 			return ret;
@@ -685,7 +682,6 @@ int ghostfs_write(struct ghostfs *gfs, struct ghostfs_entry *gentry, const char 
 			break;
 
 		offset -= CLUSTER_DATA;
-		next = c->hdr.next;
 	}
 	if (offset >= CLUSTER_DATA) {
 		warnx("fs: cluster missing, bad filesystem");
@@ -736,12 +732,10 @@ int ghostfs_read(struct ghostfs *gfs, struct ghostfs_entry *gentry, char *buf, s
 		return -EOVERFLOW;
 
 	// adjust amount to read
-	if (offset + size > entry->size)
+	if (size + offset > entry->size)
 		size = entry->size - offset;
 
-	next = entry->cluster;
-
-	while (next) {
+	for (next = entry->cluster; next; next = c->hdr.next) {
 		ret = cluster_get(gfs, next, &c);
 		if (ret < 0)
 			return ret;
@@ -750,7 +744,6 @@ int ghostfs_read(struct ghostfs *gfs, struct ghostfs_entry *gentry, char *buf, s
 			break;
 
 		offset -= CLUSTER_DATA;
-		next = c->hdr.next;
 	}
 	if (offset >= CLUSTER_DATA) {
 		warnx("fs: cluster missing, bad filesystem");
