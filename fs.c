@@ -181,7 +181,7 @@ static int dir_iter_lookup(struct ghostfs *gfs, struct dir_iter *it, const char 
 	const char *comp;
 	int ret;
 
-	if (!path[0])
+	if (path[0] != '/')
 		return -EINVAL;
 
 	ret = dir_iter_init(gfs, it, 0);
