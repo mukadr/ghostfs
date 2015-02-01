@@ -388,6 +388,9 @@ static int create_entry(struct ghostfs *gfs, const char *path, bool is_dir,
 	if (strlen(name) > FILENAME_SIZE - 1)
 		return -ENAMETOOLONG;
 
+	if (!name[0])
+		return -EINVAL;
+
 	if (dir_contains(gfs, it.entry->cluster, name) == 0)
 		return -EEXIST;
 
@@ -454,6 +457,9 @@ static int remove_entry(struct ghostfs *gfs, const char *path, bool is_dir)
 	ret = dir_iter_lookup(gfs, &link, path, false);
 	if (ret < 0)
 		return ret;
+
+	if (link.entry == &gfs->root_entry)
+		return -EINVAL;
 
 	if (is_dir != dir_entry_is_directory(link.entry))
 		return is_dir ? -ENOTDIR : -EISDIR;
@@ -609,6 +615,9 @@ int ghostfs_rename(struct ghostfs *gfs, const char *path, const char *newpath)
 	ret = dir_iter_lookup(gfs, &it, path, false);
 	if (ret < 0)
 		return ret;
+
+	if (it.entry == &gfs->root_entry)
+		return -EINVAL;
 
 	ret = create_entry(gfs, newpath, false, &entry);
 	if (ret < 0)
