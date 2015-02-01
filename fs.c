@@ -664,6 +664,10 @@ int ghostfs_write(struct ghostfs *gfs, struct ghostfs_entry *gentry, const char 
 	if (offset < 0)
 		return -EINVAL;
 
+	// check for overflow
+	if (size + offset < size)
+		return -EOVERFLOW;
+
 	if (entry->size < offset + size) {
 		ret = do_truncate(gfs, &gentry->it, offset + size);
 		if (ret < 0)
@@ -724,8 +728,12 @@ int ghostfs_read(struct ghostfs *gfs, struct ghostfs_entry *gentry, char *buf, s
 	int ret;
 	int read = 0;
 
-	if (offset < 0)
+	if (offset < 0 || offset >= entry->size)
 		return -EINVAL;
+
+	// check for overflow
+	if (size + offset < size)
+		return -EOVERFLOW;
 
 	// adjust amount to read
 	if (offset + size > entry->size)
