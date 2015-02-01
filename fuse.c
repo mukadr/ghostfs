@@ -58,16 +58,7 @@ static int gfs_fuse_create(const char *path, mode_t mode, struct fuse_file_info 
 
 static int gfs_fuse_open(const char *path, struct fuse_file_info *info)
 {
-	struct ghostfs *gfs = get_gfs();
-	struct ghostfs_entry *entry;
-	int ret;
-
-	ret = ghostfs_open(gfs, path, &entry);
-	if (ret < 0)
-		return ret;
-
-	info->fh = (intptr_t)entry;
-	return 0;
+	return ghostfs_open(get_gfs(), path, (struct ghostfs_entry **)&info->fh);
 }
 
 static int gfs_fuse_release(const char *path, struct fuse_file_info *info)
@@ -88,16 +79,7 @@ static int gfs_fuse_read(const char *path, char *buf, size_t size, off_t offset,
 
 static int gfs_fuse_opendir(const char *path, struct fuse_file_info *info)
 {
-	struct ghostfs *gfs = get_gfs();
-	struct ghostfs_entry *dp;
-	int ret;
-
-	ret = ghostfs_opendir(gfs, path, &dp);
-	if (ret < 0)
-		return ret;
-
-	info->fh = (intptr_t)dp;
-	return 0;
+	return ghostfs_opendir(get_gfs(), path, (struct ghostfs_entry **)&info->fh);
 }
 
 static int gfs_fuse_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *info)
