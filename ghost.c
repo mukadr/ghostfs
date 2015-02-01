@@ -6,7 +6,7 @@
 
 int main(int argc, char *argv[])
 {
-	struct ghostfs *gfs;
+	struct ghostfs *gfs = NULL;
 	int ret;
 
 	if (argc < 2) {
@@ -162,6 +162,7 @@ int main(int argc, char *argv[])
 	return 0;
 failed:
 	fprintf(stderr, "error: %s\n", strerror(-ret));
-	ghostfs_umount(gfs);
+	if (gfs)
+		ghostfs_umount(gfs);
 	return 1;
 }

@@ -1075,8 +1075,6 @@ int ghostfs_mount(struct ghostfs **pgfs, const char *filename)
 	if (!gfs)
 		return -ENOMEM;
 
-	*pgfs = gfs;
-
 	gfs->root_entry.size = 0x80000000;
 
 	ret = steg_open(&gfs->steg, filename);
@@ -1114,6 +1112,8 @@ int ghostfs_mount(struct ghostfs **pgfs, const char *filename)
 		if (!c->hdr.used)
 			gfs->free_clusters++;
 	}
+
+	*pgfs = gfs;
 
 	return 0;
 }
