@@ -140,7 +140,9 @@ int main(int argc, char *argv[])
 		break;
 	}
 	case '?':
-		ghostfs_debug(gfs);
+		ret = ghostfs_debug(gfs);
+		if (ret < 0)
+			goto failed;
 		break;
 	case 'm':
 		if (argc != 5) {

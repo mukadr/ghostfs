@@ -34,6 +34,6 @@ int ghostfs_statvfs(struct ghostfs *gfs, struct statvfs *stat);
 int ghostfs_format(const char *filename);
 int ghostfs_status(const struct ghostfs *gfs);
 int ghostfs_cluster_count(const struct ghostfs *gfs);
-void ghostfs_debug(struct ghostfs *gfs);
+int ghostfs_debug(struct ghostfs *gfs);
 
 #endif // GHOST_FS_H

@@ -1048,13 +1048,15 @@ int ghostfs_format(const char *filename)
 	return steg_close(gfs.steg);
 }
 
-static void print_dir_entries(struct ghostfs *gfs, int cluster_nr, const char *parent)
+static int print_dir_entries(struct ghostfs *gfs, int cluster_nr, const char *parent)
 {
 	struct dir_iter it;
 	char buf[256] = "";
+	int ret;
 
-	if (dir_iter_init(gfs, &it, cluster_nr) < 0)
-		return;
+	ret = dir_iter_init(gfs, &it, cluster_nr);
+	if (ret < 0)
+		return ret;
 
 	do {
 		if (dir_entry_used(it.entry)) {
@@ -1062,17 +1064,24 @@ static void print_dir_entries(struct ghostfs *gfs, int cluster_nr, const char *p
 			printf("%s", buf);
 			if (dir_entry_is_directory(it.entry)) {
 				printf("/\n");
-				print_dir_entries(gfs, it.entry->cluster, buf);
+				ret = print_dir_entries(gfs, it.entry->cluster, buf);
+				if (ret < 0)
+					return ret;
 			} else {
 				printf(" {%d}\n", it.entry->size);
 			}
 		}
-	} while (dir_iter_next_used(&it) == 0);
+	} while ((ret = dir_iter_next_used(&it)) == 0);
+
+	if (ret != -ENOENT)
+		return ret;
+
+	return 0;
 }
 
-void ghostfs_debug(struct ghostfs *gfs)
+int ghostfs_debug(struct ghostfs *gfs)
 {
-	print_dir_entries(gfs, 0, "");
+	return print_dir_entries(gfs, 0, "");
 }
 
 int ghostfs_mount(struct ghostfs **pgfs, const char *filename)
