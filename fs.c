@@ -1129,14 +1129,14 @@ int ghostfs_mount(struct ghostfs **pgfs, const char *filename)
 
 int ghostfs_sync(struct ghostfs *gfs)
 {
-	struct cluster *c0;
+	struct cluster *c;
 	int ret, i;
 
-	ret = cluster_get(gfs, 0, &c0);
+	ret = cluster_get(gfs, 0, &c);
 	if (ret < 0)
 		return ret;
 
-	ret = write_header(gfs, c0);
+	ret = write_header(gfs, c);
 	if (ret < 0)
 		return ret;
 
@@ -1144,7 +1144,7 @@ int ghostfs_sync(struct ghostfs *gfs)
 		return 0;
 
 	for (i = 1; i < gfs->hdr.cluster_count; i++) {
-		struct cluster *c = gfs->clusters[i];
+		c = gfs->clusters[i];
 
 		if (!c || !cluster_dirty(c))
 			continue;
