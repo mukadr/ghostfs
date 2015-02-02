@@ -14,7 +14,7 @@
 enum {
 	CLUSTER_SIZE = 4096,
 	CLUSTER_DATA = 4092,
-	CLUSTER_DIRS = 66,
+	CLUSTER_DIRENTS = 66,
 	FILENAME_SIZE = 56,
 	FILESIZE_MAX = 0x7FFFFFFF
 };
@@ -127,7 +127,7 @@ static int dir_iter_next(struct dir_iter *it)
 {
 	int ret;
 
-	if (it->entry_nr >= CLUSTER_DIRS - 1) {
+	if (it->entry_nr >= CLUSTER_DIRENTS - 1) {
 		struct cluster *c;
 
 		if (it->cluster->hdr.next == 0)
