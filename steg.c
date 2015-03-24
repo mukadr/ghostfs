@@ -69,14 +69,14 @@ int steg_close(struct steg *steg)
 	return ret;
 }
 
-int steg_read(struct steg *steg, void *buf, size_t size, size_t offset, int bits)
+int steg_read(struct steg *steg, void *buf, size_t size, size_t offset)
 {
-	return steg->ops->read(steg, buf, size, offset, bits);
+	return steg->ops->read(steg, buf, size, offset);
 }
 
-int steg_write(struct steg *steg, const void *buf, size_t size, size_t offset, int bits)
+int steg_write(struct steg *steg, const void *buf, size_t size, size_t offset)
 {
-	return steg->ops->write(steg, buf, size, offset, bits);
+	return steg->ops->write(steg, buf, size, offset);
 }
 
 size_t steg_capacity(struct steg *steg)

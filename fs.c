@@ -920,7 +920,7 @@ static int write_cluster(struct ghostfs *gfs, struct cluster *cluster, int nr)
 	const size_t c0_offset = 16 + sizeof(struct ghostfs_header);
 	int ret;
 
-	ret = steg_write(gfs->steg, cluster, CLUSTER_SIZE, c0_offset + nr*CLUSTER_SIZE, 1);
+	ret = steg_write(gfs->steg, cluster, CLUSTER_SIZE, c0_offset + nr*CLUSTER_SIZE);
 	if (ret < 0)
 		return ret;
 
@@ -933,7 +933,7 @@ static int read_cluster(struct ghostfs *gfs, struct cluster *cluster, int nr)
 	const size_t c0_offset = 16 + sizeof(struct ghostfs_header);
 	int ret;
 
-	ret = steg_read(gfs->steg, cluster, CLUSTER_SIZE, c0_offset + nr*CLUSTER_SIZE, 1);
+	ret = steg_read(gfs->steg, cluster, CLUSTER_SIZE, c0_offset + nr*CLUSTER_SIZE);
 	if (ret < 0)
 		return ret;
 
@@ -949,15 +949,15 @@ static int ghostfs_check(struct ghostfs *gfs)
 	struct cluster root;
 	int ret;
 
-	ret = steg_read(gfs->steg, &gfs->hdr, sizeof(struct ghostfs_header), 16, 1);
+	ret = steg_read(gfs->steg, &gfs->hdr, sizeof(struct ghostfs_header), 16);
 	if (ret < 0)
 		return ret;
 
-	ret = steg_read(gfs->steg, md5_fs, sizeof(md5_fs), 0, 1);
+	ret = steg_read(gfs->steg, md5_fs, sizeof(md5_fs), 0);
 	if (ret < 0)
 		return ret;
 
-	ret = steg_read(gfs->steg, &root, sizeof(root), 16 + sizeof(struct ghostfs_header), 1);
+	ret = steg_read(gfs->steg, &root, sizeof(root), 16 + sizeof(struct ghostfs_header));
 	if (ret < 0)
 		return ret;
 
@@ -986,12 +986,12 @@ static int write_header(struct ghostfs *gfs, struct cluster *cluster0)
 	MD5_Final(md5, &md5_ctx);
 
 	// write md5 of header+root
-	ret = steg_write(gfs->steg, md5, sizeof(md5), 0, 1);
+	ret = steg_write(gfs->steg, md5, sizeof(md5), 0);
 	if (ret < 0)
 		return ret;
 
 	// write header
-	ret = steg_write(gfs->steg, &gfs->hdr, sizeof(gfs->hdr), 16, 1);
+	ret = steg_write(gfs->steg, &gfs->hdr, sizeof(gfs->hdr), 16);
 	if (ret < 0)
 		return ret;
 

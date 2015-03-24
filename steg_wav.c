@@ -14,8 +14,7 @@ struct wav {
 	struct steg steg;
 };
 
-// for now, bits is always 1
-static int wav_read(struct steg *steg, void *buf, size_t size, size_t offset, int bits)
+static int wav_read(struct steg *steg, void *buf, size_t size, size_t offset)
 { 
 	struct wav *wav = container_of(steg, struct wav, steg);
 	unsigned char *bp;
@@ -43,7 +42,7 @@ static int wav_read(struct steg *steg, void *buf, size_t size, size_t offset, in
 	return 0;
 }
 
-static int wav_write(struct steg *steg, const void *buf, size_t size, size_t offset, int bits)
+static int wav_write(struct steg *steg, const void *buf, size_t size, size_t offset)
 {
 	struct wav *wav = container_of(steg, struct wav, steg);
 	const unsigned char *bp;
