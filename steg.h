@@ -8,10 +8,6 @@
 
 #define container_of(obj, type, member) ((type *)((char *)obj - (char *)offsetof(type, member)))
 
-enum steg_type {
-	STEG_WAV,
-};
-
 struct steg {
 	int fd;
 	unsigned char *map;
