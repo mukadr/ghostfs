@@ -619,6 +619,9 @@ int ghostfs_rename(struct ghostfs *gfs, const char *path, const char *newpath)
 	if (it.entry == &gfs->root_entry)
 		return -EINVAL;
 
+	// we do not care if it fails
+	remove_entry(gfs, newpath, false);
+
 	ret = create_entry(gfs, newpath, false, &entry);
 	if (ret < 0)
 		return ret;
