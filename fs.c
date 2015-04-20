@@ -736,7 +736,7 @@ int ghostfs_read(struct ghostfs *gfs, struct ghostfs_entry *gentry, char *buf, s
 	int ret;
 	int read = 0;
 
-	if (offset < 0 || offset >= entry->size)
+	if (offset < 0)
 		return -EINVAL;
 
 	// check for overflow
