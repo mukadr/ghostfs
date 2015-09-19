@@ -212,12 +212,11 @@ static int dir_iter_lookup(struct ghostfs *gfs, struct dir_iter *it, const char 
 				return ret;
 
 			comp = next + 1;
-			continue;
+		} else {
+			ret = dir_iter_next_used(it);
+			if (ret < 0)
+				break;
 		}
-
-		ret = dir_iter_next_used(it);
-		if (ret < 0)
-			break;
 	}
 
 	return ret;
