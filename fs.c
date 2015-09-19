@@ -132,16 +132,13 @@ static int dir_iter_next(struct dir_iter *it)
 	int ret;
 
 	if (it->entry_nr >= CLUSTER_DIRENTS - 1) {
-		struct cluster *c;
-
 		if (it->cluster->hdr.next == 0)
 			return -ENOENT;
 
-		ret = cluster_get(it->gfs, it->cluster->hdr.next, &c);
+		ret = cluster_get_next(it->gfs, &it->cluster);
 		if (ret < 0)
 			return ret;
 
-		it->cluster = c;
 		it->entry_nr = 0;
 		it->entry = (struct dir_entry *)it->cluster->data;
 		return 0;
@@ -533,15 +530,12 @@ static int do_truncate(struct ghostfs *gfs, struct dir_iter *it, off_t new_size)
 
 	if (new_size > it->entry->size) {
 		int alloc;
+		long used = it->entry->size % CLUSTER_DATA;
 
-		if (c) {
-			long used = it->entry->size % CLUSTER_DATA;
-
-			// zero remaining cluster space
-			if (used) {
-				memset(c->data + used, 0, CLUSTER_DATA - used);
-				cluster_set_dirty(c, true);
-			}
+		// zero remaining cluster space
+		if (used) {
+			memset(c->data + used, 0, CLUSTER_DATA - used);
+			cluster_set_dirty(c, true);
 		}
 
 		alloc = size_to_clusters(new_size) - count;
