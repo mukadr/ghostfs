@@ -11,6 +11,8 @@
 #include "md5.h"
 #include "steg.h"
 
+#define min(a, b) ((a) < (b) ? (a) : (b))
+
 enum {
 	CLUSTER_SIZE = 4096,
 	CLUSTER_DATA = 4092,
@@ -500,28 +502,6 @@ int ghostfs_rmdir(struct ghostfs *gfs, const char *path)
 	return remove_entry(gfs, path, true);
 }
 
-static int last_cluster(struct ghostfs *gfs, int first, struct cluster **pcluster)
-{
-	int ret;
-
-	for (;;) {
-		struct cluster *c;
-
-		ret = cluster_get(gfs, first, &c);
-		if (ret < 0)
-			return ret;
-
-		if (!c->hdr.next) {
-			if (pcluster)
-				*pcluster = c;
-			break;
-		}
-		first = c->hdr.next;
-	}
-
-	return first;
-}
-
 static int size_to_clusters(int size)
 {
 	return size / CLUSTER_DATA + (size % CLUSTER_DATA ? 1 : 0);
@@ -529,63 +509,76 @@ static int size_to_clusters(int size)
 
 static int do_truncate(struct ghostfs *gfs, struct dir_iter *it, off_t new_size)
 {
-	int old_nr, nr;
 	int ret;
+	int i;
+	int count;
+	int next;
+	struct cluster *c = NULL;
 
 	if (new_size < 0)
 		return -EINVAL;
+
 	if (new_size > FILESIZE_MAX)
 		return -EFBIG;
 
 	if (dir_entry_is_directory(it->entry))
 		return -EISDIR;
 
-	old_nr = size_to_clusters(it->entry->size);
-	nr = size_to_clusters(new_size);
+	next = it->entry->cluster;
+	count = size_to_clusters(min(it->entry->size, new_size));
 
-	if (nr > old_nr) { // increase cluster count
-		struct cluster *last = NULL;
-
-		if (it->entry->cluster) {
-			ret = last_cluster(gfs, it->entry->cluster, &last);
-			if (ret < 0)
-				return ret;
-		}
-
-		ret = alloc_clusters(gfs, nr - old_nr, NULL, false);
-		if (ret < 0)
-			return ret;
-
-		if (last) {
-			last->hdr.next = ret;
-			cluster_set_dirty(last, true);
-		} else {
-			it->entry->cluster = ret;
-		}
-	} else if (nr < old_nr) { // decrease cluster count
-		struct cluster *c;
-		int i;
-		int next = it->entry->cluster;
-
-		for (i = 0; i < nr; i++) {
-			ret = cluster_get(gfs, next, &c);
-			if (ret < 0)
-				return ret;
-			next = c->hdr.next;
-		}
-
-		if (nr) {
-			cluster_set_dirty(c, true);
-			c->hdr.next = 0;
-		} else {
-			it->entry->cluster = 0;
+	for (i = 0; i < count; i++) {
+		if (!next) {
+			warnx("fs: cluster missing, bad filesystem");
+			return -EIO;
 		}
 
 		ret = cluster_get(gfs, next, &c);
 		if (ret < 0)
 			return ret;
 
-		free_clusters(gfs, c);
+		next = c->hdr.next;
+	}
+
+	if (new_size > it->entry->size) {
+		int alloc;
+
+		if (c) {
+			long used = it->entry->size % CLUSTER_DATA;
+
+			// zero remaining cluster space
+			if (used) {
+				memset(c->data + used, 0, CLUSTER_DATA - used);
+				cluster_set_dirty(c, true);
+			}
+		}
+
+		alloc = size_to_clusters(new_size) - count;
+		if (alloc) {
+			ret = alloc_clusters(gfs, alloc, NULL, true);
+			if (ret < 0)
+				return ret;
+
+			if (c) {
+				c->hdr.next = ret;
+				cluster_set_dirty(c, true);
+			} else {
+				it->entry->cluster = ret;
+			}
+		}
+	} else if (new_size < it->entry->size) {
+		if (next) {
+			if (c) {
+				c->hdr.next = 0;
+				cluster_set_dirty(c, true);
+			}
+
+			ret = cluster_get(gfs, next, &c);
+			if (ret < 0)
+				return ret;
+
+			free_clusters(gfs, c);
+		}
 	}
 
 	dir_entry_set_size(it->entry, new_size, false);
