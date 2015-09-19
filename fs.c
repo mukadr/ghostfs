@@ -687,7 +687,7 @@ int ghostfs_write(struct ghostfs *gfs, struct ghostfs_entry *gentry, const char 
 	}
 
 	while (size) {
-		int w = (size < CLUSTER_DATA) ? size : CLUSTER_DATA;
+		int w = min(size, CLUSTER_DATA);
 		if (offset + w > CLUSTER_DATA)
 			w -= (offset + w) - CLUSTER_DATA;
 
@@ -748,7 +748,7 @@ int ghostfs_read(struct ghostfs *gfs, struct ghostfs_entry *gentry, char *buf, s
 	}
 
 	while (size) {
-		int r = (size < CLUSTER_DATA) ? size : CLUSTER_DATA;
+		int r = min(size, CLUSTER_DATA);
 		if (offset + r > CLUSTER_DATA)
 			r -= (offset + r) - CLUSTER_DATA;
 
