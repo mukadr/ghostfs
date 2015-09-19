@@ -872,21 +872,12 @@ static int cluster_get(struct ghostfs *gfs, int nr, struct cluster **pcluster)
 
 static int cluster_get_next(struct ghostfs *gfs, struct cluster **pcluster)
 {
-	struct cluster *c = NULL;
-	int ret;
-
 	if ((*pcluster)->hdr.next == 0) {
 		warnx("fs: cluster missing, bad filesystem");
 		return -EIO;
 	}
 
-	ret = cluster_get(gfs, (*pcluster)->hdr.next, &c);
-	if (ret < 0)
-		return ret;
-
-	*pcluster = c;
-
-	return 0;
+	return cluster_get(gfs, (*pcluster)->hdr.next, pcluster);
 }
 
 // cluster_at returns the cluster at the given index starting from cluster nr
