@@ -408,12 +408,7 @@ static int create_entry(struct ghostfs *gfs, const char *path, bool is_dir,
 			return nr;
 
 		prev = it.cluster;
-		ret = find_empty_entry(gfs, &it, nr);
-		if (ret < 0) { // should never happen
-			warnx("BUG: failed to find empty entry in empty cluster");
-			free_clusters(gfs, next);
-			return ret;
-		}
+		find_empty_entry(gfs, &it, nr);
 
 		prev->hdr.next = nr;
 		cluster_set_dirty(prev, true);
@@ -612,7 +607,6 @@ int ghostfs_rename(struct ghostfs *gfs, const char *path, const char *newpath)
 	if (it.entry == &gfs->root_entry)
 		return -EINVAL;
 
-	// we do not care if it fails
 	remove_entry(gfs, newpath, false);
 
 	ret = create_entry(gfs, newpath, false, &entry);
