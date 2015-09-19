@@ -95,6 +95,7 @@ static inline bool cluster_dirty(const struct cluster *cluster)
 }
 
 static int cluster_get(struct ghostfs *gfs, int nr, struct cluster **pcluster);
+static int cluster_at(struct ghostfs *gfs, int nr, int index, struct cluster **pcluster);
 static int write_cluster(struct ghostfs *gfs, struct cluster *cluster, int nr);
 static int read_cluster(struct ghostfs *gfs, struct cluster *cluster, int nr);
 static int ghostfs_check(struct ghostfs *gfs);
@@ -505,7 +506,6 @@ static int size_to_clusters(int size)
 static int do_truncate(struct ghostfs *gfs, struct dir_iter *it, off_t new_size)
 {
 	int ret;
-	int i;
 	int count;
 	int next;
 	struct cluster *c = NULL;
@@ -522,13 +522,8 @@ static int do_truncate(struct ghostfs *gfs, struct dir_iter *it, off_t new_size)
 	next = it->entry->cluster;
 	count = size_to_clusters(min(it->entry->size, new_size));
 
-	for (i = 0; i < count; i++) {
-		if (!next) {
-			warnx("fs: cluster missing, bad filesystem");
-			return -EIO;
-		}
-
-		ret = cluster_get(gfs, next, &c);
+	if (count) {
+		ret = cluster_at(gfs, next, count - 1, &c);
 		if (ret < 0)
 			return ret;
 
@@ -655,7 +650,6 @@ int ghostfs_write(struct ghostfs *gfs, struct ghostfs_entry *gentry, const char 
 {
 	struct dir_entry *entry = gentry->it.entry;
 	struct cluster *c;
-	int next;
 	int ret;
 	int written = 0;
 
@@ -671,20 +665,11 @@ int ghostfs_write(struct ghostfs *gfs, struct ghostfs_entry *gentry, const char 
 			return ret;
 	}
 
-	for (next = entry->cluster; next; next = c->hdr.next) {
-		ret = cluster_get(gfs, next, &c);
-		if (ret < 0)
-			return ret;
+	ret = cluster_at(gfs, entry->cluster, offset/CLUSTER_DATA, &c);
+	if (ret < 0)
+		return ret;
 
-		if (offset < CLUSTER_DATA)
-			break;
-
-		offset -= CLUSTER_DATA;
-	}
-	if (offset >= CLUSTER_DATA) {
-		warnx("fs: cluster missing, bad filesystem");
-		return -EIO;
-	}
+	offset %= CLUSTER_DATA;
 
 	while (size) {
 		int w = min(size, CLUSTER_DATA);
@@ -699,16 +684,17 @@ int ghostfs_write(struct ghostfs *gfs, struct ghostfs_entry *gentry, const char 
 		written += w;
 		offset = 0;
 
-		if (!c->hdr.next)
+		if (!c->hdr.next) {
+			if (size) {
+				warnx("fs: cluster missing, bad filesystem");
+				return -EIO;
+			}
 			break;
+		}
 
 		ret = cluster_get(gfs, c->hdr.next, &c);
 		if (ret < 0)
 			return ret;
-	}
-	if (size) {
-		warnx("fs: cluster missing, bad filesystem");
-		return -EIO;
 	}
 
 	return written;
@@ -718,7 +704,6 @@ int ghostfs_read(struct ghostfs *gfs, struct ghostfs_entry *gentry, char *buf, s
 {
 	struct dir_entry *entry = gentry->it.entry;
 	struct cluster *c;
-	int next;
 	int ret;
 	int read = 0;
 
@@ -728,24 +713,14 @@ int ghostfs_read(struct ghostfs *gfs, struct ghostfs_entry *gentry, char *buf, s
 	if (size + offset < size)
 		return -EOVERFLOW;
 
-	// adjust amount to read
 	if (size + offset > entry->size)
 		size = entry->size - offset;
 
-	for (next = entry->cluster; next; next = c->hdr.next) {
-		ret = cluster_get(gfs, next, &c);
-		if (ret < 0)
-			return ret;
+	ret = cluster_at(gfs, entry->cluster, offset/CLUSTER_DATA, &c);
+	if (ret < 0)
+		return ret;
 
-		if (offset < CLUSTER_DATA)
-			break;
-
-		offset -= CLUSTER_DATA;
-	}
-	if (offset >= CLUSTER_DATA) {
-		warnx("fs: cluster missing, bad filesystem");
-		return -EIO;
-	}
+	offset %= CLUSTER_DATA;
 
 	while (size) {
 		int r = min(size, CLUSTER_DATA);
@@ -759,16 +734,17 @@ int ghostfs_read(struct ghostfs *gfs, struct ghostfs_entry *gentry, char *buf, s
 		read += r;
 		offset = 0;
 
-		if (!c->hdr.next)
+		if (!c->hdr.next) {
+			if (size) {
+				warnx("fs: cluster missing, bad filesystem");
+				return -EIO;
+			}
 			break;
+		}
 
 		ret = cluster_get(gfs, c->hdr.next, &c);
 		if (ret < 0)
 			return ret;
-	}
-	if (size) {
-		warnx("fs: cluster missing, bad filesystem");
-		return -EIO;
 	}
 
 	return read;
@@ -902,6 +878,31 @@ static int cluster_get(struct ghostfs *gfs, int nr, struct cluster **pcluster)
 
 	return 0;
 }
+
+// cluster_at returns the cluster at the given index starting from cluster nr
+static int cluster_at(struct ghostfs *gfs, int nr, int index, struct cluster **pcluster)
+{
+	struct cluster *c = NULL;
+	int ret, i;
+
+	for (i = 0; i <= index; i++) {
+		if (!nr) {
+			warnx("fs: cluster missing, bad filesystem");
+			return -EIO;
+		}
+
+		ret = cluster_get(gfs, nr, &c);
+		if (ret < 0)
+			return ret;
+
+		nr = c->hdr.next;
+	}
+
+	*pcluster = c;
+
+	return 0;
+}
+
 
 static int write_cluster(struct ghostfs *gfs, struct cluster *cluster, int nr)
 {
