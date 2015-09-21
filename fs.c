@@ -767,11 +767,7 @@ int ghostfs_next_entry(struct ghostfs *gfs, struct ghostfs_entry *entry)
 			return 0;
 	}
 
-	ret = dir_iter_next_used(&entry->it);
-	if (ret < 0)
-		return ret;
-
-	return 0;
+	return dir_iter_next_used(&entry->it);
 }
 
 void ghostfs_closedir(struct ghostfs_entry *entry)
