@@ -177,7 +177,8 @@ static bool component_eq(const char *comp, const char *name, size_t n)
 	return (!*comp || *comp == '/') && !*name;
 }
 
-static int dir_iter_lookup(struct ghostfs *gfs, struct dir_iter *it, const char *path, bool skip_last)
+static int dir_iter_lookup(struct ghostfs *gfs, struct dir_iter *it, const char *path,
+			   bool skip_last)
 {
 	const char *comp;
 	int ret;
@@ -640,7 +641,8 @@ void ghostfs_release(struct ghostfs_entry *entry)
 	free(entry);
 }
 
-int ghostfs_write(struct ghostfs *gfs, struct ghostfs_entry *gentry, const char *buf, size_t size, off_t offset)
+int ghostfs_write(struct ghostfs *gfs, struct ghostfs_entry *gentry, const char *buf,
+		  size_t size, off_t offset)
 {
 	struct dir_entry *entry = gentry->it.entry;
 	struct cluster *c;
@@ -689,7 +691,8 @@ int ghostfs_write(struct ghostfs *gfs, struct ghostfs_entry *gentry, const char 
 	return written;
 }
 
-int ghostfs_read(struct ghostfs *gfs, struct ghostfs_entry *gentry, char *buf, size_t size, off_t offset)
+int ghostfs_read(struct ghostfs *gfs, struct ghostfs_entry *gentry, char *buf,
+		 size_t size, off_t offset)
 {
 	struct dir_entry *entry = gentry->it.entry;
 	struct cluster *c;

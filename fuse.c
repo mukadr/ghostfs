@@ -66,12 +66,14 @@ static int gfs_fuse_release(const char *path, struct fuse_file_info *info)
 	return 0;
 }
 
-static int gfs_fuse_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *info)
+static int gfs_fuse_write(const char *path, const char *buf, size_t size, off_t offset,
+			  struct fuse_file_info *info)
 {
 	return ghostfs_write(get_gfs(), (struct ghostfs_entry *)info->fh, buf, size, offset);
 }
 
-static int gfs_fuse_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *info)
+static int gfs_fuse_read(const char *path, char *buf, size_t size, off_t offset,
+			 struct fuse_file_info *info)
 {
 	return ghostfs_read(get_gfs(), (struct ghostfs_entry *)info->fh, buf, size, offset);
 }
@@ -81,7 +83,8 @@ static int gfs_fuse_opendir(const char *path, struct fuse_file_info *info)
 	return ghostfs_opendir(get_gfs(), path, (struct ghostfs_entry **)&info->fh);
 }
 
-static int gfs_fuse_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *info)
+static int gfs_fuse_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
+			    off_t offset, struct fuse_file_info *info)
 {
 	struct ghostfs *gfs = get_gfs();
 	struct ghostfs_entry *dp = (struct ghostfs_entry *)info->fh;
