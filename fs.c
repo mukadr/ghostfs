@@ -45,11 +45,6 @@ static inline bool dir_entry_is_directory(const struct dir_entry *e)
 	return (e->size & 0x80000000) != 0;
 }
 
-static inline uint32_t dir_entry_size(const struct dir_entry *e)
-{
-	return e->size & 0x7FFFFFFF;
-}
-
 static inline void dir_entry_set_size(struct dir_entry *e, uint32_t new_size, bool is_dir)
 {
 	e->size = new_size & 0x7FFFFFFF;
