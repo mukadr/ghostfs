@@ -4,45 +4,37 @@ ghostfs
 Steganographic filesystem
 
 A simple filesystem to play with different steganographic techniques.
-It will essentially work with media files like picture and music.
+Currently it only supports non compressed WAVE files under PCM format.
 
-http://en.wikipedia.org/wiki/Steganography
-
-###Creating a new filesystem
+##Build instructions
+####Install FUSE
+######Linux (Ubuntu)
 ```
-# Install fuse development libraries (Ubuntu example)
 sudo apt-get install libfuse-dev
 ```
+######Mac OS X
+Install OSXFUSE: https://osxfuse.github.io/
+####Clone and build
 ```
-# Clone and build
 git clone http://github.com/mukadr/ghostfs.git
 cd ghostfs
 make
 ```
+##Usage
+####Format
 ```
-# Convert audio file to wav (in case you only have mp3 or something else)
-# You may have ffmpeg instead of avconv depending on the system
-avconv -i audio.mp3 audio.wav
+ghost audio.wav f
 ```
+####Mount
 ```
-# Format your audio file with ghostfs
-./ghost audio.wav f
+ghost-fuse audio.wav folder
 ```
+####Unmount
+######Linux
 ```
-# Create an empty folder to use as mountpoint
-mkdir mount
+fusermount -u folder
 ```
+######Mac OS X
 ```
-# Mount
-./ghost-fuse audio.wav mount
-```
-```
-# Write stuff to it ...
-cd mount
-echo "Hello World" > foo.txt
-```
-```
-# Unmount
-cd ..
-fusermount -u mount
+umount folder
 ```
