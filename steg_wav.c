@@ -112,13 +112,13 @@ static int wav_init(struct wav *wav)
 	}
 	if (len < 24) {
 		warnx("wav: incomplete or no 'fmt ' section found");
-		return -EMEDIUMTYPE;
+		return -EIO;
 	}
 
 	audio_fmt = *(uint16_t *)(p + 8);
 	if (audio_fmt != 1) {
 		warnx("wav: only PCM format supported");
-		return -EMEDIUMTYPE;
+		return -EIO;
 	}
 
 	wav->bps = *(uint16_t *)(p + 22) / 8;
@@ -131,7 +131,7 @@ static int wav_init(struct wav *wav)
 	}
 	if (len < 8) {
 		warnx("wav: incomplete or no 'data' section found");
-		return -EMEDIUMTYPE;
+		return -EIO;
 	}
 
 	wav->data = p + 8;
@@ -139,7 +139,7 @@ static int wav_init(struct wav *wav)
 
 	if (wav->len + (wav->data - wav->steg.map) > wav->steg.len) {
 		warnx("wav: bad data section");
-		return -EMEDIUMTYPE;
+		return -EIO;
 	}
 
 	return 0;

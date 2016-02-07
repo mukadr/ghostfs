@@ -47,12 +47,12 @@ int steg_open(struct steg **steg, const char *filename)
 
 	len = strlen(filename);
 	if (len < 5)
-		return -EMEDIUMTYPE;
+		return -EIO;
 
 	if (memcmp(&filename[len-4], ".wav", 4) == 0)
 		return wav_open(steg, filename);
 
-	return -EMEDIUMTYPE;
+	return -EIO;
 }
 
 int steg_close(struct steg *steg)

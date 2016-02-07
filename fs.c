@@ -949,7 +949,7 @@ static int ghostfs_check(struct ghostfs *gfs)
 
 	if (memcmp(md5, md5_fs, 16) != 0) {
 		warnx("fs: incorrect checksum");
-		return -EMEDIUMTYPE;
+		return -EIO;
 	}
 
 	return 0;
