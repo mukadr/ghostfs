@@ -790,7 +790,7 @@ int ghostfs_getattr(struct ghostfs *gfs, const char *filename, struct stat *stat
 	memset(stat, 0, sizeof(*stat));
 
 	if (dir_entry_is_directory(it.entry)) {
-		stat->st_mode |= S_IFDIR;
+		stat->st_mode |= S_IFDIR | S_IXUSR;
 		stat->st_size = CLUSTER_SIZE;
 	} else {
 		stat->st_mode |= S_IFREG;
