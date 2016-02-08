@@ -122,6 +122,16 @@ static int gfs_fuse_statfs(const char *path, struct statvfs *stat)
 	return ghostfs_statvfs(get_gfs(), stat);
 }
 
+static int gfs_fuse_chmod(const char *path, mode_t mode)
+{
+	return 0;
+}
+
+static int gfs_fuse_chown(const char *path, uid_t uid, gid_t gid)
+{
+	return 0;
+}
+
 void *init(struct fuse_conn_info *conn)
 {
 	return get_gfs();
@@ -156,6 +166,8 @@ struct fuse_operations operations = {
 	.getattr = gfs_fuse_getattr,
 	.rename = gfs_fuse_rename,
 	.statfs = gfs_fuse_statfs,
+	.chmod = gfs_fuse_chmod,
+	.chown = gfs_fuse_chown
 };
 
 int main(int argc, char *argv[])
