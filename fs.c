@@ -987,18 +987,19 @@ int ghostfs_format(const char *filename)
 	size_t count;
 	struct cluster cluster;
 	int ret, i;
+	const int HEADER_SIZE = 16 + sizeof(struct ghostfs_header);
 
 	ret = steg_open(&gfs.steg, filename);
 	if (ret < 0)
 		return ret;
 
-	avail = steg_capacity(gfs.steg) - 16 - sizeof(struct ghostfs_header);
-	count = avail / CLUSTER_SIZE;
-
-	if (count < 1) {
+	avail = steg_capacity(gfs.steg);
+	if (avail < HEADER_SIZE + CLUSTER_SIZE) {
 		steg_close(gfs.steg);
 		return -ENOSPC;
 	}
+
+	count = (avail - HEADER_SIZE) / CLUSTER_SIZE;
 	if (count > 0xFFFF) {
 		warnx("fs: %lu clusters available, using only %d", count, 0xFFFF);
 		count = 0xFFFF;
