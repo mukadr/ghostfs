@@ -3,8 +3,8 @@ ghostfs
 
 Steganographic filesystem
 
-A simple filesystem to play with different steganographic techniques.
-Currently it only supports non compressed WAVE files under PCM format.
+A simple filesystem to play with steganographic techniques.
+Currently it only supports non compressed WAVE and BMP files.
 
 ##Build instructions
 ####Install FUSE

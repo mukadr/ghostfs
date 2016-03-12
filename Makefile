@@ -11,6 +11,7 @@ LDFLAGS = $(shell pkg-config fuse --libs)
 OBJS  = fs.o
 OBJS += md5.o
 OBJS += steg.o
+OBJS += steg_bmp.o
 OBJS += steg_wav.o
 
 all: $(PROG)

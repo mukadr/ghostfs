@@ -10,6 +10,7 @@
 
 #include "steg.h"
 #include "steg_wav.h"
+#include "steg_bmp.h"
 
 int steg_init(struct steg *steg, const char *filename, const struct steg_operations *ops)
 {
@@ -48,6 +49,9 @@ int steg_open(struct steg **steg, const char *filename)
 	len = strlen(filename);
 	if (len < 5)
 		return -EIO;
+
+	if (memcmp(&filename[len-4], ".bmp", 4) == 0)
+		return bmp_open(steg, filename);
 
 	if (memcmp(&filename[len-4], ".wav", 4) == 0)
 		return wav_open(steg, filename);
