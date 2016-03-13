@@ -124,7 +124,7 @@ static int wav_init(struct wav *wav)
 	wav->bps = *(uint16_t *)(p + 22) / 8;
 
 	while (len >= 4) {
-		if (memcmp(p, "data ", 4) == 0)
+		if (memcmp(p, "data", 4) == 0)
 			break;
 		p++;
 		len--;
