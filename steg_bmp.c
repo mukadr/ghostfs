@@ -99,7 +99,7 @@ static int bmp_init(struct bmp *bmp)
 	unsigned char *p = bmp->steg.map;
 	size_t len = bmp->steg.len;
 	uint32_t pixel_offset;
-	unsigned w, h, bps;
+	unsigned w, h, bpp;
 
 	if (len < 30) {
 		warnx("bmp: invalid header");
@@ -113,9 +113,9 @@ static int bmp_init(struct bmp *bmp)
 
 	w = *(uint32_t *)(p + 18);
 	h = *(uint32_t *)(p + 22);
-	bps = *(uint16_t *)(p + 28) / 8;
+	bpp = *(uint16_t *)(p + 28) / 8;
 
-	bmp->len = w * h * bps;
+	bmp->len = w * h * bpp;
 
 	pixel_offset = *(uint32_t *)(p + 10);
 	if (pixel_offset + bmp->len > len) {
