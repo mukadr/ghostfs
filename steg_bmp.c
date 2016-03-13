@@ -101,7 +101,7 @@ static int bmp_init(struct bmp *bmp)
 	uint32_t pixel_offset;
 	unsigned w, h, bps;
 
-	if (len < 26) {
+	if (len < 30) {
 		warnx("bmp: invalid header");
 		return -EIO;
 	}
