@@ -66,6 +66,7 @@ struct ghostfs {
 	gid_t gid;
 	time_t mount_time;
 	uint16_t free_clusters;
+	int bits;
 };
 
 struct cluster_header {
@@ -896,7 +897,7 @@ static int write_cluster(struct ghostfs *gfs, struct cluster *cluster, int nr)
 	const size_t c0_offset = 16 + sizeof(struct ghostfs_header);
 	int ret;
 
-	ret = steg_write(gfs->steg, cluster, CLUSTER_SIZE, c0_offset + nr*CLUSTER_SIZE);
+	ret = steg_write(gfs->steg, cluster, CLUSTER_SIZE, c0_offset + nr*CLUSTER_SIZE, gfs->bits);
 	if (ret < 0)
 		return ret;
 
@@ -909,7 +910,7 @@ static int read_cluster(struct ghostfs *gfs, struct cluster *cluster, int nr)
 	const size_t c0_offset = 16 + sizeof(struct ghostfs_header);
 	int ret;
 
-	ret = steg_read(gfs->steg, cluster, CLUSTER_SIZE, c0_offset + nr*CLUSTER_SIZE);
+	ret = steg_read(gfs->steg, cluster, CLUSTER_SIZE, c0_offset + nr*CLUSTER_SIZE, gfs->bits);
 	if (ret < 0)
 		return ret;
 
@@ -923,31 +924,45 @@ static int ghostfs_check(struct ghostfs *gfs)
 	unsigned char md5_fs[16];
 	unsigned char md5[16];
 	struct cluster root;
+	int bits;
 	int ret;
 
-	ret = steg_read(gfs->steg, &gfs->hdr, sizeof(struct ghostfs_header), 16);
-	if (ret < 0)
-		return ret;
+	// try all bit configuration possibilities
+	for (bits = 1; bits <= 8; bits++) {
+		ret = steg_read(gfs->steg, &gfs->hdr, sizeof(struct ghostfs_header), 16, bits);
+		if (ret < 0) {
+			if (ret == -EINVAL)
+				continue;
+			return ret;
+		}
 
-	ret = steg_read(gfs->steg, md5_fs, sizeof(md5_fs), 0);
-	if (ret < 0)
-		return ret;
+		ret = steg_read(gfs->steg, md5_fs, sizeof(md5_fs), 0, bits);
+		if (ret < 0) {
+			if (ret == -EINVAL)
+				continue;
+			return ret;
+		}
 
-	ret = steg_read(gfs->steg, &root, sizeof(root), 16 + sizeof(struct ghostfs_header));
-	if (ret < 0)
-		return ret;
+		ret = steg_read(gfs->steg, &root, sizeof(root), 16 + sizeof(struct ghostfs_header), bits);
+		if (ret < 0) {
+			if (ret == -EINVAL)
+				continue;
+			return ret;
+		}
 
-	MD5_Init(&md5_ctx);
-	MD5_Update(&md5_ctx, &gfs->hdr, sizeof(gfs->hdr));
-	MD5_Update(&md5_ctx, &root, sizeof(root));
-	MD5_Final(md5, &md5_ctx);
+		MD5_Init(&md5_ctx);
+		MD5_Update(&md5_ctx, &gfs->hdr, sizeof(gfs->hdr));
+		MD5_Update(&md5_ctx, &root, sizeof(root));
+		MD5_Final(md5, &md5_ctx);
 
-	if (memcmp(md5, md5_fs, 16) != 0) {
-		warnx("fs: incorrect checksum");
-		return -EIO;
+		if (memcmp(md5, md5_fs, 16) == 0) {
+			gfs->bits = bits;
+			return 0;
+		}
 	}
 
-	return 0;
+	warnx("fs: incorrect checksum");
+	return -EIO;
 }
 
 static int write_header(struct ghostfs *gfs, struct cluster *cluster0)
@@ -962,12 +977,12 @@ static int write_header(struct ghostfs *gfs, struct cluster *cluster0)
 	MD5_Final(md5, &md5_ctx);
 
 	// write md5 of header+root
-	ret = steg_write(gfs->steg, md5, sizeof(md5), 0);
+	ret = steg_write(gfs->steg, md5, sizeof(md5), 0, gfs->bits);
 	if (ret < 0)
 		return ret;
 
 	// write header
-	ret = steg_write(gfs->steg, &gfs->hdr, sizeof(gfs->hdr), 16);
+	ret = steg_write(gfs->steg, &gfs->hdr, sizeof(gfs->hdr), 16, gfs->bits);
 	if (ret < 0)
 		return ret;
 
@@ -980,7 +995,7 @@ static int write_header(struct ghostfs *gfs, struct cluster *cluster0)
 }
 
 // create a new filesystem
-int ghostfs_format(const char *filename)
+int ghostfs_format(const char *filename, int bits)
 {
 	struct ghostfs gfs;
 	size_t avail;
@@ -989,11 +1004,15 @@ int ghostfs_format(const char *filename)
 	int ret, i;
 	const int HEADER_SIZE = 16 + sizeof(struct ghostfs_header);
 
+	if (bits < 1 || bits > 8)
+		return -EINVAL;
+	gfs.bits = bits;
+
 	ret = steg_open(&gfs.steg, filename);
 	if (ret < 0)
 		return ret;
 
-	avail = steg_capacity(gfs.steg);
+	avail = steg_capacity(gfs.steg) * bits / 8;
 	if (avail < HEADER_SIZE + CLUSTER_SIZE) {
 		steg_close(gfs.steg);
 		return -ENOSPC;

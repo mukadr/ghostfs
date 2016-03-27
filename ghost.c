@@ -14,8 +14,8 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	if (argc == 3 && argv[2][0] == 'f') {
-		ret = ghostfs_format(argv[1]);
+	if (argc == 4 && argv[2][0] == 'f') {
+		ret = ghostfs_format(argv[1], atoi(argv[3]));
 		if (ret < 0)
 			goto failed;
 		return 0;

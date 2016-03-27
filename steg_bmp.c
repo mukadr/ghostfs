@@ -13,25 +13,32 @@ struct bmp {
 	struct steg steg;
 };
 
-static int bmp_read(struct steg *steg, void *buf, size_t size, size_t offset)
+static int bmp_read(struct steg *steg, void *buf, size_t size, size_t offset, int bits)
 { 
 	struct bmp *bmp = container_of(steg, struct bmp, steg);
 	unsigned char *bp;
-	int i;
+	int i, rbit;
 
-	offset *= 8;
-	if (offset + size * 8 >= bmp->len)
+	rbit = offset * 8 % bits;
+	offset = offset * 8 / bits;
+	if (offset + (size * 8 / bits) >= bmp->len)
 		return -EINVAL;
 
 	bp = buf;
 	for (i = 0; i < size; i++) {
 		unsigned char b = 0;
-		int bit;
+		int wbit;
 
-		for (bit = 0; bit < 8; bit++) {
-			if ((bmp->pixel[offset] & 1) == 1)
-				b |= 1 << bit;
-			offset++;
+		for (wbit = 0; wbit < 8; wbit++) {
+			if (bmp->pixel[offset] & (1 << rbit))
+				b |= 1 << wbit;
+
+			rbit++;
+
+			if (rbit == bits) {
+				rbit = 0;
+				offset++;
+			}
 		}
 		*bp++ = b;
 	}
@@ -39,30 +46,36 @@ static int bmp_read(struct steg *steg, void *buf, size_t size, size_t offset)
 	return 0;
 }
 
-static int bmp_write(struct steg *steg, const void *buf, size_t size, size_t offset)
+static int bmp_write(struct steg *steg, const void *buf, size_t size, size_t offset, int bits)
 {
 	struct bmp *bmp = container_of(steg, struct bmp, steg);
 	const unsigned char *bp;
-	int bit;
+	int rbit, wbit;
 
-	offset *= 8;
+	wbit = offset * 8 % bits;
+	offset = offset * 8 / bits;
 
-	if (offset + size * 8 >= bmp->len)
+	if (offset + (size * 8 / bits) >= bmp->len)
 		return -EINVAL;
 
 	bp = buf;
-	bit = 0;
+	rbit = 0;
 	for (;;) {
-		if ((bp[0] & (1 << bit)) != 0)
-			bmp->pixel[offset] |= 1;
+		if (bp[0] & (1 << rbit))
+			bmp->pixel[offset] |= 1 << wbit;
 		else
-			bmp->pixel[offset] &= 0xFE;
+			bmp->pixel[offset] &= ~(1 << wbit);
 
-		bit++;
-		offset++;
+		rbit++;
+		wbit++;
 
-		if (bit == 8) {
-			bit = 0;
+		if (wbit == bits) {
+			wbit = 0;
+			offset++;
+		}
+
+		if (rbit == 8) {
+			rbit = 0;
 			if (size == 1)
 				break;
 			size--;
@@ -77,7 +90,7 @@ static size_t bmp_capacity(struct steg *steg)
 {
 	struct bmp *bmp = container_of(steg, struct bmp, steg);
 
-	return bmp->len/8;
+	return bmp->len;
 }
 
 static void bmp_release(struct steg *steg)
