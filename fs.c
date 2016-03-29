@@ -701,8 +701,14 @@ int ghostfs_read(struct ghostfs *gfs, struct ghostfs_entry *gentry, char *buf,
 	if (size + offset < size)
 		return -EOVERFLOW;
 
-	if (size + offset > entry->size)
+	if (offset > entry->size)
+		return 0;
+
+	if (offset + size > entry->size)
 		size = entry->size - offset;
+
+	if (!size)
+		return 0;
 
 	ret = cluster_at(gfs, entry->cluster, offset/CLUSTER_DATA, &c);
 	if (ret < 0)
