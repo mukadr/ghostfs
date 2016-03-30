@@ -1031,7 +1031,19 @@ int ghostfs_format(const char *filename, int bits)
 	}
 
 	gfs.hdr.cluster_count = count;
-	memset(&cluster, 0, sizeof(cluster));
+
+	ret = read_cluster(&gfs, &cluster, 0);
+	if (ret < 0) {
+		steg_close(gfs.steg);
+		return ret;
+	}
+
+	cluster.hdr.next = 0;
+
+	for (i = 0; i < CLUSTER_DATA; i += sizeof(struct dir_entry)) {
+		struct dir_entry *e = (struct dir_entry *)&cluster.data[i];
+		e->filename[0] = '\0';
+	}
 
 	ret = write_header(&gfs, &cluster);
 	if (ret < 0) {
@@ -1040,6 +1052,14 @@ int ghostfs_format(const char *filename, int bits)
 	}
 
 	for (i = 1; i < count; i++) {
+		ret = read_cluster(&gfs, &cluster, i);
+		if (ret < 0) {
+			steg_close(gfs.steg);
+			return ret;
+		}
+
+		cluster.hdr.used = 0;
+
 		ret = write_cluster(&gfs, &cluster, i);
 		if (ret < 0) {
 			steg_close(gfs.steg);
