@@ -275,6 +275,15 @@ static int dir_contains(struct ghostfs *gfs, int cluster_nr, const char *name)
 	return ret;
 }
 
+static void zero_cluster_data(struct cluster *c)
+{
+	struct dir_entry *entries = (struct dir_entry *)c->data;
+	int i;
+
+	for (i = 0; i < CLUSTER_DIRENTS; i++)
+		entries[i].filename[0] = '\0';
+}
+
 // allocates a list of clusters
 static int alloc_clusters(struct ghostfs *gfs, int count, struct cluster **pfirst, bool zero)
 {
@@ -298,7 +307,7 @@ static int alloc_clusters(struct ghostfs *gfs, int count, struct cluster **pfirs
 
 			if (!c->hdr.used) {
 				if (zero)
-					memset(c->data, 0, sizeof(c->data));
+					zero_cluster_data(c);
 
 				c->hdr.used = 1;
 				cluster_set_dirty(c, true);
@@ -1039,11 +1048,7 @@ int ghostfs_format(const char *filename, int bits)
 	}
 
 	cluster.hdr.next = 0;
-
-	for (i = 0; i < CLUSTER_DATA; i += sizeof(struct dir_entry)) {
-		struct dir_entry *e = (struct dir_entry *)&cluster.data[i];
-		e->filename[0] = '\0';
-	}
+	zero_cluster_data(&cluster);
 
 	ret = write_header(&gfs, &cluster);
 	if (ret < 0) {
