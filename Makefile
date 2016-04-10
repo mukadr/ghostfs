@@ -9,10 +9,12 @@ CFLAGS += $(shell pkg-config fuse --cflags)
 LDFLAGS = $(shell pkg-config fuse --libs)
 
 OBJS  = fs.o
+OBJS += lsb.o
+OBJS += bmp.o
+OBJS += wav.o
 OBJS += md5.o
-OBJS += steg.o
-OBJS += steg_bmp.o
-OBJS += steg_wav.o
+OBJS += util.o
+OBJS += sampler.o
 
 all: $(PROG)
 

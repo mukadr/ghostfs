@@ -1,11 +1,16 @@
+#include <err.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "fs.h"
+#include "lsb.h"
+#include "util.h"
 
 int main(int argc, char *argv[])
 {
+	struct sampler *sampler = NULL;
+	struct stegger *stegger = NULL;
 	struct ghostfs *gfs = NULL;
 	int ret;
 
@@ -14,16 +19,23 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
+	ret = open_sampler_by_extension(&sampler, argv[1]);
+	if (ret < 0)
+		goto umount;
+
 	if (argc == 4 && argv[2][0] == 'f') {
-		ret = ghostfs_format(argv[1], atoi(argv[3]));
+		ret = lsb_open(&stegger, sampler, atoi(argv[3]));
 		if (ret < 0)
-			goto failed;
-		return 0;
+			goto umount;
+
+		ret = ghostfs_format(stegger);
+
+		goto umount;
 	}
 
-	ret = ghostfs_mount(&gfs, argv[1]);
+	ret = try_mount_lsb(&gfs, &stegger, sampler);
 	if (ret < 0)
-		goto failed;
+		goto umount;
 
 	printf("cluster count = %d\n", ghostfs_cluster_count(gfs));
 
@@ -38,7 +50,7 @@ int main(int argc, char *argv[])
 		}
 		ret = ghostfs_create(gfs, argv[3]);
 		if (ret < 0)
-			goto failed;
+			goto umount;
 		break;
 	case 'd':
 		if (argc != 4) {
@@ -47,7 +59,7 @@ int main(int argc, char *argv[])
 		}
 		ret = ghostfs_mkdir(gfs, argv[3]);
 		if (ret < 0)
-			goto failed;
+			goto umount;
 		break;
 	case 'r':
 		if (argc != 4) {
@@ -56,7 +68,7 @@ int main(int argc, char *argv[])
 		}
 		ret = ghostfs_unlink(gfs, argv[3]);
 		if (ret < 0)
-			goto failed;
+			goto umount;
 		break;
 	case 'R':
 		if (argc != 4) {
@@ -65,7 +77,7 @@ int main(int argc, char *argv[])
 		}
 		ret = ghostfs_rmdir(gfs, argv[3]);
 		if (ret < 0)
-			goto failed;
+			goto umount;
 		break;
 	case 't':
 		if (argc != 5) {
@@ -74,7 +86,7 @@ int main(int argc, char *argv[])
 		}
 		ret = ghostfs_truncate(gfs, argv[3], atol(argv[4]));
 		if (ret < 0)
-			goto failed;
+			goto umount;
 		break;
 	case '1': {
 		struct ghostfs_entry *e;
@@ -86,11 +98,11 @@ int main(int argc, char *argv[])
 
 		ret = ghostfs_open(gfs, argv[3], &e);
 		if (ret < 0)
-			goto failed;
+			goto umount;
 
 		ret = ghostfs_write(gfs, e, "Hello World!", 12, atol(argv[4]));
 		if (ret < 0)
-			goto failed;
+			goto umount;
 
 		ghostfs_release(e);
 		break;
@@ -106,11 +118,11 @@ int main(int argc, char *argv[])
 
 		ret = ghostfs_open(gfs, argv[3], &e);
 		if (ret < 0)
-			goto failed;
+			goto umount;
 
 		ret = ghostfs_read(gfs, e, buf, sizeof(buf), atol(argv[4]));
 		if (ret < 0)
-			goto failed;
+			goto umount;
 
 		fwrite(buf, sizeof(buf), 1, stdout);
 		printf("\n");
@@ -128,13 +140,13 @@ int main(int argc, char *argv[])
 
 		ret = ghostfs_opendir(gfs, argv[3], &e);
 		if (ret < 0)
-			goto failed;
+			goto umount;
 
 		while ((ret = ghostfs_next_entry(gfs, e)) == 0)
 			printf("'%s'\n", ghostfs_entry_name(e));
 
 		if (ret != -ENOENT)
-			goto failed;
+			goto umount;
 
 		ghostfs_closedir(e);
 		break;
@@ -142,7 +154,7 @@ int main(int argc, char *argv[])
 	case '?':
 		ret = ghostfs_debug(gfs);
 		if (ret < 0)
-			goto failed;
+			goto umount;
 		break;
 	case 'm':
 		if (argc != 5) {
@@ -152,19 +164,32 @@ int main(int argc, char *argv[])
 
 		ret = ghostfs_rename(gfs, argv[3], argv[4]);
 		if (ret < 0)
-			goto failed;
+			goto umount;
 
 		break;
 	}
 
-	ret = ghostfs_umount(gfs);
+umount:
 	if (ret < 0)
-		goto failed;
+		fprintf(stderr, "error: %s\n", strerror(-ret));
 
-	return 0;
-failed:
-	fprintf(stderr, "error: %s\n", strerror(-ret));
-	if (gfs)
-		ghostfs_umount(gfs);
-	return 1;
+	if (gfs) {
+		ret = ghostfs_umount(gfs);
+		if (ret < 0)
+			fprintf(stderr, "error: %s\n", strerror(-ret));
+	}
+
+	if (stegger) {
+		ret = stegger_close(stegger);
+		if (ret < 0)
+			fprintf(stderr, "error: %s\n", strerror(-ret));
+	}
+
+	if (sampler) {
+		ret = sampler_close(sampler);
+		if (ret < 0)
+			fprintf(stderr, "error: %s\n", strerror(-ret));
+	}
+
+	return ret < 0;
 }

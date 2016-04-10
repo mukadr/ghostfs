@@ -8,10 +8,12 @@
 #include <sys/statvfs.h>
 #include <unistd.h>
 
+#include "stegger.h"
+
 struct ghostfs;
 struct ghostfs_entry;
 
-int ghostfs_mount(struct ghostfs **pgfs, const char *filename);
+int ghostfs_mount(struct ghostfs **pgfs, struct stegger *stegger);
 int ghostfs_umount(struct ghostfs *gfs);
 
 int ghostfs_create(struct ghostfs *gfs, const char *path);
@@ -31,7 +33,7 @@ const char *ghostfs_entry_name(const struct ghostfs_entry *entry);
 int ghostfs_getattr(struct ghostfs *gfs, const char *filename, struct stat *stat);
 int ghostfs_statvfs(struct ghostfs *gfs, struct statvfs *stat);
 
-int ghostfs_format(const char *filename, int bits);
+int ghostfs_format(struct stegger *stegger);
 int ghostfs_status(const struct ghostfs *gfs);
 int ghostfs_cluster_count(const struct ghostfs *gfs);
 int ghostfs_debug(struct ghostfs *gfs);

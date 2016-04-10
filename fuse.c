@@ -1,5 +1,6 @@
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define FUSE_USE_VERSION 26
@@ -9,10 +10,17 @@
 #include <unistd.h>
 
 #include "fs.h"
+#include "util.h"
+
+struct gfs_context {
+	struct sampler *sampler;
+	struct stegger *stegger;
+	struct ghostfs *gfs;
+};
 
 static struct ghostfs *get_gfs(void)
 {
-	return fuse_get_context()->private_data;
+	return ((struct gfs_context *)fuse_get_context()->private_data)->gfs;
 }
 
 static int gfs_fuse_unlink(const char *path)
@@ -132,23 +140,25 @@ static int gfs_fuse_chown(const char *path, uid_t uid, gid_t gid)
 	return 0;
 }
 
-void *init(struct fuse_conn_info *conn)
-{
-	return get_gfs();
-}
-
 void destroy(void *user)
 {
-	struct ghostfs *gfs = user;
+	struct gfs_context *ctx = user;
 	int ret;
 
-	ret = ghostfs_umount(gfs);
+	ret = ghostfs_umount(ctx->gfs);
+	if (ret < 0)
+		fprintf(stderr, "failed to write filesystem: %s\n", strerror(-ret));
+
+	ret = stegger_close(ctx->stegger);
+	if (ret < 0)
+		fprintf(stderr, "failed to write filesystem: %s\n", strerror(-ret));
+
+	ret = sampler_close(ctx->sampler);
 	if (ret < 0)
 		fprintf(stderr, "failed to write filesystem: %s\n", strerror(-ret));
 }
 
 struct fuse_operations operations = {
-	.init = init,
 	.destroy = destroy,
 
 	.unlink = gfs_fuse_unlink,
@@ -173,9 +183,9 @@ struct fuse_operations operations = {
 int main(int argc, char *argv[])
 {
 	char *fuse_argv[4];
-	struct ghostfs *gfs;
 	int ret;
 	bool debug;
+	struct gfs_context ctx;
 
 	if (argc < 3) {
 		fprintf(stderr, "usage: ghost-fuse file mount_point [d]\n");
@@ -184,7 +194,13 @@ int main(int argc, char *argv[])
 
 	debug = (argc > 3) && !strcmp(argv[3], "d");
 
-	ret = ghostfs_mount(&gfs, argv[1]);
+	ret = open_sampler_by_extension(&ctx.sampler, argv[1]);
+	if (ret < 0) {
+		fprintf(stderr, "invalid format");
+		return 1;
+	}
+
+	ret = try_mount_lsb(&ctx.gfs, &ctx.stegger, ctx.sampler);
 	if (ret < 0) {
 		fprintf(stderr, "failed to mount: %s\n", strerror(-ret));
 		return 1;
@@ -197,5 +213,5 @@ int main(int argc, char *argv[])
 	if (debug)
 		fuse_argv[3] = "-d";
 
-	return fuse_main(debug ? 4 : 3, fuse_argv, &operations, gfs);
+	return fuse_main(debug ? 4 : 3, fuse_argv, &operations, &ctx);
 }
