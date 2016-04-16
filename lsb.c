@@ -107,6 +107,9 @@ static int lsb_write(struct stegger *stegger, const void *buf, size_t size, size
 		}
 	}
 
+	if (wbit > 0)
+		sampler_write(lsb->sampler, offset, sample);
+
 	return 0;
 }
 
