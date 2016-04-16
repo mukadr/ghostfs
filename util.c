@@ -28,6 +28,7 @@ int open_sampler_by_extension(struct sampler **sampler, const char *filename)
 int try_mount_lsb(struct ghostfs **pgfs, struct stegger **plsb, struct sampler *sampler)
 {
 	struct stegger *lsb;
+	struct ghostfs *gfs;
 	int i, ret;
 
 	for (i = 1; i <= 8; i++) {
@@ -35,8 +36,9 @@ int try_mount_lsb(struct ghostfs **pgfs, struct stegger **plsb, struct sampler *
 		if (ret < 0)
 			return ret;
 
-		ret = ghostfs_mount(pgfs, lsb);
+		ret = ghostfs_mount(&gfs, lsb);
 		if (ret == 0) {
+			*pgfs = gfs;
 			*plsb = lsb;
 			return 0;
 		}
