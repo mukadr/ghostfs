@@ -17,7 +17,7 @@ struct lsb {
 static int lsb_read(struct stegger *stegger, void *buf, size_t size, size_t offset)
 { 
 	struct lsb *lsb = container_of(stegger, struct lsb, stegger);
-	int rbit = lsb->bits;
+	int rbit;
 	int i;
 	unsigned char *bp = buf;
 	sample_t sample = 0;
