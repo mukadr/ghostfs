@@ -31,7 +31,7 @@ int try_mount_lsb(struct ghostfs **pgfs, struct stegger **plsb, struct sampler *
 	struct ghostfs *gfs;
 	int i, ret;
 
-	for (i = 1; i <= 8; i++) {
+	for (i = 1; i <= sampler->bits; i++) {
 		ret = lsb_open(&lsb, sampler, i);
 		if (ret < 0)
 			return ret;
@@ -46,7 +46,7 @@ int try_mount_lsb(struct ghostfs **pgfs, struct stegger **plsb, struct sampler *
 		stegger_close(lsb);
 	}
 
-	warnx("tried to mount lsb 1..8: failed");
+	warnx("tried to mount lsb 1..%d: failed", sampler->bits);
 
 	return ret;
 }
