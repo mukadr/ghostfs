@@ -29,7 +29,7 @@ int try_mount_lsb(struct ghostfs **pgfs, struct stegger **plsb, struct sampler *
 {
 	struct stegger *lsb;
 	struct ghostfs *gfs;
-	int i, ret;
+	int i, ret = 0;
 
 	for (i = 1; i <= sampler->bits; i++) {
 		ret = lsb_open(&lsb, sampler, i);
