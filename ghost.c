@@ -5,6 +5,7 @@
 
 #include "fs.h"
 #include "lsb.h"
+#include "passwd.h"
 #include "util.h"
 
 int main(int argc, char *argv[])
@@ -23,8 +24,18 @@ int main(int argc, char *argv[])
 	if (ret < 0)
 		goto umount;
 
-	if (argc == 4 && argv[2][0] == 'f') {
+	if (argc == 4 && strcmp(argv[2], "f") == 0) {
 		ret = lsb_open(&stegger, sampler, atoi(argv[3]));
+		if (ret < 0)
+			goto umount;
+
+		ret = ghostfs_format(stegger);
+
+		goto umount;
+	}
+
+	if (argc == 4 && strcmp(argv[2], "fp") == 0) {
+		ret = passwd_open(&stegger, sampler, argv[3]);
 		if (ret < 0)
 			goto umount;
 

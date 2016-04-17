@@ -10,6 +10,7 @@
 #include <unistd.h>
 
 #include "fs.h"
+#include "passwd.h"
 #include "util.h"
 
 struct gfs_context {
@@ -186,13 +187,12 @@ int main(int argc, char *argv[])
 	int ret;
 	bool debug;
 	struct gfs_context ctx;
+	const char *env;
 
 	if (argc < 3) {
-		fprintf(stderr, "usage: ghost-fuse file mount_point [d]\n");
+		fprintf(stderr, "usage: ghost-fuse file mount_point <password>\n");
 		return 1;
 	}
-
-	debug = (argc > 3) && !strcmp(argv[3], "d");
 
 	ret = open_sampler_by_extension(&ctx.sampler, argv[1]);
 	if (ret < 0) {
@@ -200,16 +200,33 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	ret = try_mount_lsb(&ctx.gfs, &ctx.stegger, ctx.sampler);
-	if (ret < 0) {
-		fprintf(stderr, "failed to mount: %s\n", strerror(-ret));
-		return 1;
+	if (argc == 4) {
+		ret = passwd_open(&ctx.stegger, ctx.sampler, argv[3]);
+		if (ret < 0) {
+			fprintf(stderr, "failed to mount: %s\n", strerror(-ret));
+			return 1;
+		}
+
+		ret = ghostfs_mount(&ctx.gfs, ctx.stegger);
+		if (ret < 0) {
+			fprintf(stderr, "failed to mount: %s\n", strerror(-ret));
+			return 1;
+		}
+	} else {
+		ret = try_mount_lsb(&ctx.gfs, &ctx.stegger, ctx.sampler);
+		if (ret < 0) {
+			fprintf(stderr, "failed to mount: %s\n", strerror(-ret));
+			return 1;
+		}
 	}
 
 	fuse_argv[0] = argv[0];
 	fuse_argv[1] = argv[2];
 	// disable multithreading
 	fuse_argv[2] = "-s";
+
+	env = getenv("GHOSTFS_DEBUG");
+	debug = env && atoi(env);
 	if (debug)
 		fuse_argv[3] = "-d";
 

@@ -14,6 +14,7 @@ OBJS += bmp.o
 OBJS += wav.o
 OBJS += md5.o
 OBJS += util.o
+OBJS += passwd.o
 OBJS += sampler.o
 
 all: $(PROG)
