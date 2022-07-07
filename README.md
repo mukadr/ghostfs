@@ -1,10 +1,10 @@
 ghostfs
 =======
 
-Steganographic filesystem for FUSE
+Steganographic filesystem for FUSE. Supports non compressed WAVE and BMP files.
 
-A simple filesystem to play with steganographic techniques.
-Currently it only supports non compressed WAVE and BMP files.
+![Sample bitmap image](mage.bmp)
+![Mounting filesystem from bitmap image](sample.png)
 
 ## Build instructions
 #### Install FUSE
@@ -16,8 +16,8 @@ sudo apt-get install libfuse-dev
 Install OSXFUSE: https://osxfuse.github.io/
 #### Clone and build
 ```
-git clone http://github.com/mukadr/ghostfs.git
-cd ghostfs
+git clone http://github.com/mukadr/GhostFS.git
+cd GhostFS
 make
 ```
 ## Usage
