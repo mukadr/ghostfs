@@ -22,7 +22,9 @@ enum {
 	FILESIZE_MAX = 0x7FFFFFFF
 };
 
-// MD5(header+cluster0) | header | cluster0 .. clusterN
+/*
+ * MD5(header+cluster0) | header | cluster0 .. clusterN
+ */
 struct ghostfs_header {
 	uint16_t cluster_count;
 } __attribute__((packed));
@@ -30,14 +32,14 @@ struct ghostfs_header {
 /*
  * Root directory '/' is stored at cluster 0.
  *
- * Each directory cluster have 66 entries(62 bytes each) = 4092bytes.
+ * Each directory cluster have 66 entries(62 bytes each) summing 4092 bytes.
  * The remaining 4 bytes of the cluster are used to store the cluster_header
  *
  * An empty filename (filename[0] == '\0') means that the entry is empty
  */
 struct dir_entry {
 	char filename[FILENAME_SIZE];
-	uint32_t size; // highest bit is set when the entry is a directory
+	uint32_t size;
 	uint16_t cluster;
 } __attribute__((packed));
 
@@ -73,7 +75,9 @@ struct ghostfs {
 struct cluster_header {
 	uint16_t next;
 	uint8_t used;
-	uint8_t dirty; // unused byte. we use it only in-memory to know if the cache entry is dirty
+
+        /* unused byte. we use it only in-memory to know if the cache entry is dirty */
+	uint8_t dirty;
 } __attribute__((packed));
 
 struct cluster {
@@ -81,23 +85,20 @@ struct cluster {
 	struct cluster_header hdr;
 } __attribute__((packed));
 
-static inline void cluster_set_dirty(struct cluster *cluster, bool dirty)
+static inline void mark_cluster(struct cluster *c)
 {
-	cluster->hdr.dirty = dirty ? 1 : 0;
+	c->hdr.dirty = 1;
 }
 
-static inline bool cluster_dirty(const struct cluster *cluster)
+static inline void unmark_cluster(struct cluster *c)
 {
-	return cluster->hdr.dirty != 0;
+        c->hdr.dirty = 0;
 }
 
-static int cluster_get(struct ghostfs *gfs, int nr, struct cluster **pcluster);
-static int cluster_get_next(struct ghostfs *gfs, struct cluster **pcluster);
-static int cluster_at(struct ghostfs *gfs, int nr, int index, struct cluster **pcluster);
-static int write_cluster(struct ghostfs *gfs, struct cluster *cluster, int nr);
-static int read_cluster(struct ghostfs *gfs, struct cluster *cluster, int nr);
-static int ghostfs_check(struct ghostfs *gfs);
-static int ghostfs_free(struct ghostfs *gfs);
+static inline bool is_dirty(const struct cluster *c)
+{
+	return c->hdr.dirty != 0;
+}
 
 struct dir_iter {
 	struct ghostfs *gfs;
@@ -109,6 +110,14 @@ struct dir_iter {
 struct ghostfs_entry {
 	struct dir_iter it;
 };
+
+static int cluster_get(struct ghostfs *gfs, int nr, struct cluster **pcluster);
+static int cluster_get_next(struct ghostfs *gfs, struct cluster **pcluster);
+static int cluster_at(struct ghostfs *gfs, int nr, int index, struct cluster **pcluster);
+static int write_cluster(struct ghostfs *gfs, struct cluster *cluster, int nr);
+static int read_cluster(struct ghostfs *gfs, struct cluster *cluster, int nr);
+static int ghostfs_check(struct ghostfs *gfs);
+static int ghostfs_free(struct ghostfs *gfs);
 
 static int dir_iter_init(struct ghostfs *gfs, struct dir_iter *it, int cluster_nr)
 {
@@ -213,11 +222,9 @@ static int dir_iter_lookup(struct ghostfs *gfs, struct dir_iter *it, const char 
 		} else {
 			ret = dir_iter_next_used(it);
 			if (ret < 0)
-				break;
+				return ret;
 		}
 	}
-
-	return ret;
 }
 
 static const char *last_component(const char *path)
@@ -302,7 +309,7 @@ static int alloc_clusters(struct ghostfs *gfs, int count, struct cluster **pfirs
 					memset(c->data, 0, sizeof(c->data));
 
 				c->hdr.used = 1;
-				cluster_set_dirty(c, true);
+				mark_cluster(c);
 				gfs->free_clusters--;
 
 				if (!first) {
@@ -333,7 +340,7 @@ undo:
 			return r;
 
 		c->hdr.used = 0;
-		cluster_set_dirty(c, true);
+		mark_cluster(c);
 		gfs->free_clusters++;
 
 		pos = c->hdr.next;
@@ -349,7 +356,7 @@ static int free_clusters(struct ghostfs *gfs, struct cluster *c)
 
 	for (;;) {
 		c->hdr.used = 0;
-		cluster_set_dirty(c, true);
+		mark_cluster(c);
 		gfs->free_clusters++;
 
 		if (!c->hdr.next)
@@ -407,7 +414,7 @@ static int create_entry(struct ghostfs *gfs, const char *path, bool is_dir,
 		find_empty_entry(gfs, &it, nr);
 
 		prev->hdr.next = nr;
-		cluster_set_dirty(prev, true);
+		mark_cluster(prev);
 	}
 
 	if (is_dir) {
@@ -424,7 +431,7 @@ static int create_entry(struct ghostfs *gfs, const char *path, bool is_dir,
 	strcpy(it.entry->filename, name);
 	dir_entry_set_size(it.entry, 0, is_dir);
 	it.entry->cluster = cluster_nr;
-	cluster_set_dirty(it.cluster, true);
+	mark_cluster(it.cluster);
 
 	if (entry)
 		*entry = it.entry;
@@ -478,7 +485,7 @@ static int remove_entry(struct ghostfs *gfs, const char *path, bool is_dir)
 	free_clusters(gfs, it.cluster);
 unlink:
 	link.entry->filename[0] = '\0';
-	cluster_set_dirty(link.cluster, true);
+	mark_cluster(link.cluster);
 
 	return 0;
 }
@@ -532,7 +539,7 @@ static int do_truncate(struct ghostfs *gfs, struct dir_iter *it, off_t new_size)
 		// zero remaining cluster space
 		if (used) {
 			memset(c->data + used, 0, CLUSTER_DATA - used);
-			cluster_set_dirty(c, true);
+			mark_cluster(c);
 		}
 
 		alloc = size_to_clusters(new_size) - count;
@@ -543,7 +550,7 @@ static int do_truncate(struct ghostfs *gfs, struct dir_iter *it, off_t new_size)
 
 			if (c) {
 				c->hdr.next = ret;
-				cluster_set_dirty(c, true);
+				mark_cluster(c);
 			} else {
 				it->entry->cluster = ret;
 			}
@@ -552,7 +559,7 @@ static int do_truncate(struct ghostfs *gfs, struct dir_iter *it, off_t new_size)
 		if (next) {
 			if (c) {
 				c->hdr.next = 0;
-				cluster_set_dirty(c, true);
+				mark_cluster(c);
 			}
 
 			ret = cluster_get(gfs, next, &c);
@@ -564,7 +571,7 @@ static int do_truncate(struct ghostfs *gfs, struct dir_iter *it, off_t new_size)
 	}
 
 	dir_entry_set_size(it->entry, new_size, false);
-	cluster_set_dirty(it->cluster, true);
+	mark_cluster(it->cluster);
 
 	return 0;
 }
@@ -602,7 +609,7 @@ int ghostfs_rename(struct ghostfs *gfs, const char *path, const char *newpath)
 
 	// remove old entry
 	it.entry->filename[0] = '\0';
-	cluster_set_dirty(it.cluster, true);
+	mark_cluster(it.cluster);
 
 	// fix new entry
 	entry->size = it.entry->size;
@@ -670,7 +677,7 @@ int ghostfs_write(struct ghostfs *gfs, struct ghostfs_entry *gentry, const char 
 			w -= (offset + w) - CLUSTER_DATA;
 
 		memcpy(c->data + offset, buf, w);
-		cluster_set_dirty(c, true);
+		mark_cluster(c);
 
 		size -= w;
 		buf += w;
@@ -865,18 +872,20 @@ static int cluster_get(struct ghostfs *gfs, int nr, struct cluster **pcluster)
 	return 0;
 }
 
-static int cluster_get_next(struct ghostfs *gfs, struct cluster **pcluster)
+static int cluster_get_next(struct ghostfs *gfs, struct cluster **cluster)
 {
-	if ((*pcluster)->hdr.next == 0) {
+        struct cluster *c = *cluster;
+
+	if (!c->hdr.next) {
 		warnx("fs: cluster missing, bad filesystem");
 		return -EIO;
 	}
 
-	return cluster_get(gfs, (*pcluster)->hdr.next, pcluster);
+	return cluster_get(gfs, c->hdr.next, cluster);
 }
 
 // cluster_at returns the cluster at the given index starting from cluster nr
-static int cluster_at(struct ghostfs *gfs, int nr, int index, struct cluster **pcluster)
+static int cluster_at(struct ghostfs *gfs, int nr, int index, struct cluster **cluster)
 {
 	struct cluster *c = NULL;
 	int ret, i;
@@ -894,7 +903,7 @@ static int cluster_at(struct ghostfs *gfs, int nr, int index, struct cluster **p
 		nr = c->hdr.next;
 	}
 
-	*pcluster = c;
+	*cluster = c;
 
 	return 0;
 }
@@ -908,7 +917,7 @@ static int write_cluster(struct ghostfs *gfs, struct cluster *cluster, int nr)
 	if (ret < 0)
 		return ret;
 
-	cluster_set_dirty(cluster, false);
+	unmark_cluster(cluster);
 	return 0;
 }
 
@@ -921,7 +930,7 @@ static int read_cluster(struct ghostfs *gfs, struct cluster *cluster, int nr)
 	if (ret < 0)
 		return ret;
 
-	cluster_set_dirty(cluster, false);
+	unmark_cluster(cluster);
 	return 0;
 }
 
@@ -1140,7 +1149,7 @@ int ghostfs_sync(struct ghostfs *gfs)
 	for (i = 1; i < gfs->hdr.cluster_count; i++) {
 		c = gfs->clusters[i];
 
-		if (!c || !cluster_dirty(c))
+		if (!c || !is_dirty(c))
 			continue;
 
 		ret = write_cluster(gfs, c, i);
