@@ -15,7 +15,6 @@ struct ghostfs_entry;
 
 int ghostfs_mount(struct ghostfs **pgfs, struct stegger *stegger);
 int ghostfs_umount(struct ghostfs *gfs);
-
 int ghostfs_create(struct ghostfs *gfs, const char *path);
 int ghostfs_unlink(struct ghostfs *gfs, const char *path);
 int ghostfs_mkdir(struct ghostfs *gfs, const char *path);
@@ -32,7 +31,6 @@ void ghostfs_closedir(struct ghostfs_entry *entry);
 const char *ghostfs_entry_name(const struct ghostfs_entry *entry);
 int ghostfs_getattr(struct ghostfs *gfs, const char *filename, struct stat *stat);
 int ghostfs_statvfs(struct ghostfs *gfs, struct statvfs *stat);
-
 int ghostfs_format(struct stegger *stegger);
 int ghostfs_status(const struct ghostfs *gfs);
 int ghostfs_cluster_count(const struct ghostfs *gfs);
