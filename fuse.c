@@ -196,7 +196,7 @@ int main(int argc, char *argv[])
 
 	ret = open_sampler_by_extension(&ctx.sampler, argv[1]);
 	if (ret < 0) {
-		fprintf(stderr, "invalid format");
+		fprintf(stderr, "invalid format\n");
 		return 1;
 	}
 
