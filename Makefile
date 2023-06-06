@@ -1,7 +1,8 @@
 CC = gcc
 PROG = ghost ghost-fuse
 
-CFLAGS  = -std=gnu99 -Wall -O2
+CFLAGS  = -D_FILE_OFFSET_BITS=64
+CFLAGS += -std=gnu99 -Wall -O2
 CFLAGS += -Werror-implicit-function-declaration
 CFLAGS += -Wshadow
 CFLAGS += $(shell pkg-config fuse --cflags)
