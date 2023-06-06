@@ -117,7 +117,7 @@ static int cluster_at(struct ghostfs *gfs, int nr, int index, struct cluster **p
 static int write_cluster(struct ghostfs *gfs, struct cluster *cluster, int nr);
 static int read_cluster(struct ghostfs *gfs, struct cluster *cluster, int nr);
 static int ghostfs_check(struct ghostfs *gfs);
-static int ghostfs_free(struct ghostfs *gfs);
+static void ghostfs_free(struct ghostfs *gfs);
 
 static int dir_iter_init(struct ghostfs *gfs, struct dir_iter *it, int cluster_nr)
 {
@@ -1160,7 +1160,7 @@ int ghostfs_sync(struct ghostfs *gfs)
 	return 0;
 }
 
-static int ghostfs_free(struct ghostfs *gfs)
+static void ghostfs_free(struct ghostfs *gfs)
 {
 	if (gfs->clusters) {
 		int i;
@@ -1172,20 +1172,15 @@ static int ghostfs_free(struct ghostfs *gfs)
 	}
 
 	free(gfs);
-
-	return 0;
 }
 
 int ghostfs_umount(struct ghostfs *gfs)
 {
-	int ret;
+	int ret = ghostfs_sync(gfs);
 
-	ret = ghostfs_sync(gfs);
-	if (ret < 0) {
-		ghostfs_free(gfs);
-		return ret;
-	}
-	return ghostfs_free(gfs);
+        ghostfs_free(gfs);
+
+        return ret;
 }
 
 int ghostfs_cluster_count(const struct ghostfs *gfs)
