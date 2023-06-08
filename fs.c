@@ -69,7 +69,6 @@ struct ghostfs {
 	gid_t gid;
 	time_t mount_time;
 	uint16_t free_clusters;
-	int bits;
 };
 
 struct cluster_header {
