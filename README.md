@@ -13,11 +13,11 @@ Steganographic filesystem for FUSE. Supports non compressed WAVE and BMP files.
 sudo apt-get install libfuse-dev
 ```
 ###### Mac OS X
-Install OSXFUSE: https://osxfuse.github.io/
+Install MacFUSE: https://osxfuse.github.io/
 #### Clone and build
 ```
-git clone http://github.com/mukadr/GhostFS.git
-cd GhostFS
+git clone http://github.com/mukadr/ghostfs.git
+cd ghostfs
 make
 ```
 ## Usage
