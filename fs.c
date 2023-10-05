@@ -12,15 +12,13 @@
 #include "md5.h"
 #include "stegger.h"
 
-#define min(a, b) ((a) < (b) ? (a) : (b))
+#define CLUSTER_SIZE 4096
+#define CLUSTER_DATA 4092
+#define CLUSTER_DIRENTS 66
+#define FILENAME_SIZE 56
+#define FILESIZE_MAX 0x7FFFFFFF
 
-enum {
-	CLUSTER_SIZE = 4096,
-	CLUSTER_DATA = 4092,
-	CLUSTER_DIRENTS = 66,
-	FILENAME_SIZE = 56,
-	FILESIZE_MAX = 0x7FFFFFFF
-};
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
 
 /*
  * MD5(header+cluster0) | header | cluster0 .. clusterN
@@ -74,8 +72,6 @@ struct ghostfs {
 struct cluster_header {
 	uint16_t next;
 	uint8_t used;
-
-        /* unused byte. we use it only in-memory to know if the cache entry is dirty */
 	uint8_t dirty;
 } __attribute__((packed));
 
@@ -236,10 +232,6 @@ static const char *last_component(const char *path)
 	return path;
 }
 
-/*
- * Updates iter to point to the first unused entry in the cluster.
- * If no entry is available, iter is updated to the last entry and -ENOENT is returned.
- */
 static int find_empty_entry(struct ghostfs *gfs, struct dir_iter *iter, int cluster_nr)
 {
 	struct dir_iter it;
@@ -282,7 +274,6 @@ static int dir_contains(struct ghostfs *gfs, int cluster_nr, const char *name)
 	return ret;
 }
 
-// allocates a list of clusters
 static int alloc_clusters(struct ghostfs *gfs, int count, struct cluster **pfirst, bool zero)
 {
 	struct cluster *prev = NULL;
@@ -372,8 +363,10 @@ static int free_clusters(struct ghostfs *gfs, struct cluster *c)
 	return 0;
 }
 
-static int create_entry(struct ghostfs *gfs, const char *path, bool is_dir,
-		struct dir_entry **entry)
+static int create_entry(struct ghostfs *gfs,
+			const char *path,
+			bool is_dir,
+			struct dir_entry **entry)
 {
 	struct dir_iter it;
 	struct cluster *prev = NULL, *next = NULL;
@@ -521,7 +514,7 @@ static int do_truncate(struct ghostfs *gfs, struct dir_iter *it, off_t new_size)
 		return -EISDIR;
 
 	next = it->entry->cluster;
-	count = size_to_clusters(min(it->entry->size, new_size));
+	count = size_to_clusters(MIN(it->entry->size, new_size));
 
 	if (count) {
 		ret = cluster_at(gfs, next, count - 1, &c);
@@ -644,8 +637,11 @@ void ghostfs_release(struct ghostfs_entry *entry)
 	free(entry);
 }
 
-int ghostfs_write(struct ghostfs *gfs, struct ghostfs_entry *gentry, const char *buf,
-		  size_t size, off_t offset)
+int ghostfs_write(struct ghostfs *gfs,
+		  struct ghostfs_entry *gentry,
+		  const char *buf,
+		  size_t size,
+		  off_t offset)
 {
 	struct dir_entry *entry = gentry->it.entry;
 	struct cluster *c;
@@ -671,7 +667,7 @@ int ghostfs_write(struct ghostfs *gfs, struct ghostfs_entry *gentry, const char 
 	offset %= CLUSTER_DATA;
 
 	for (;;) {
-		int w = min(size, CLUSTER_DATA);
+		int w = MIN(size, CLUSTER_DATA);
 		if (offset + w > CLUSTER_DATA)
 			w -= (offset + w) - CLUSTER_DATA;
 
@@ -694,8 +690,11 @@ int ghostfs_write(struct ghostfs *gfs, struct ghostfs_entry *gentry, const char 
 	return written;
 }
 
-int ghostfs_read(struct ghostfs *gfs, struct ghostfs_entry *gentry, char *buf,
-		 size_t size, off_t offset)
+int ghostfs_read(struct ghostfs *gfs,
+		 struct ghostfs_entry *gentry,
+		 char *buf,
+		 size_t size,
+		 off_t offset)
 {
 	struct dir_entry *entry = gentry->it.entry;
 	struct cluster *c;
@@ -724,7 +723,7 @@ int ghostfs_read(struct ghostfs *gfs, struct ghostfs_entry *gentry, char *buf,
 	offset %= CLUSTER_DATA;
 
 	for (;;) {
-		int r = min(size, CLUSTER_DATA);
+		int r = MIN(size, CLUSTER_DATA);
 		if (offset + r > CLUSTER_DATA)
 			r -= (offset + r) - CLUSTER_DATA;
 
@@ -809,7 +808,6 @@ int ghostfs_getattr(struct ghostfs *gfs, const char *filename, struct stat *stat
 	// user that mounted filesystem owns all files
 	stat->st_uid = gfs->uid;
 	stat->st_gid = gfs->gid;
-	// only read and write allowed
 	stat->st_mode |= S_IRUSR | S_IWUSR;
 
 	stat->st_blocks = stat->st_size / 512 + (stat->st_size % 512 ? 1 : 0);
@@ -1142,7 +1140,7 @@ int ghostfs_sync(struct ghostfs *gfs)
 	if (ret < 0)
 		return ret;
 
-	if (!gfs->clusters) // nothing more to sync
+	if (!gfs->clusters)
 		return 0;
 
 	for (i = 1; i < gfs->hdr.cluster_count; i++) {
